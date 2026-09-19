@@ -61,22 +61,106 @@ inline String urlDecode(const String &str) {
 }
 
 // ---------------------------------------------------------------------------
-// 鑑權與 Session 驗證 (Cookie & Header Token)
+// 健全鑑權與真隨機 Session 管理 (128-bit Random Token + RAM Session Table)
 // ---------------------------------------------------------------------------
+struct SessionEntry {
+  char token[33];        // 32 位元 16 進位字串 + null 終結符
+  uint32_t expiresAt;    // Unix 時間戳記或系統秒數 (到期時間)
+  bool active;
+};
+
+constexpr size_t MAX_ACTIVE_SESSIONS = 8;
+static SessionEntry g_activeSessions[MAX_ACTIVE_SESSIONS] = {};
+
+inline String generateSecureSessionToken() {
+  char hexBuf[33];
+  uint32_t r1 = esp_random();
+  uint32_t r2 = esp_random();
+  uint32_t r3 = esp_random();
+  uint32_t r4 = esp_random();
+  snprintf(hexBuf, sizeof(hexBuf), "%08x%08x%08x%08x", (unsigned)r1, (unsigned)r2, (unsigned)r3, (unsigned)r4);
+  return String(hexBuf);
+}
+
+inline String createNewSession() {
+  uint32_t nowSec = millis() / 1000;
+  String token = generateSecureSessionToken();
+
+  // 尋找空位或已到期欄位
+  int targetSlot = -1;
+  for (size_t i = 0; i < MAX_ACTIVE_SESSIONS; i++) {
+    if (!g_activeSessions[i].active || g_activeSessions[i].expiresAt < nowSec) {
+      targetSlot = i;
+      break;
+    }
+  }
+  if (targetSlot == -1) targetSlot = 0; // 若全滿則替換最舊的第 0 格
+
+  strncpy(g_activeSessions[targetSlot].token, token.c_str(), sizeof(g_activeSessions[targetSlot].token) - 1);
+  g_activeSessions[targetSlot].token[sizeof(g_activeSessions[targetSlot].token) - 1] = '\0';
+  g_activeSessions[targetSlot].expiresAt = nowSec + 604800; // 預設 7 天有效
+  g_activeSessions[targetSlot].active = true;
+  return token;
+}
+
+inline void invalidateSession(const String &token) {
+  for (size_t i = 0; i < MAX_ACTIVE_SESSIONS; i++) {
+    if (g_activeSessions[i].active && token == g_activeSessions[i].token) {
+      g_activeSessions[i].active = false;
+      g_activeSessions[i].token[0] = '\0';
+    }
+  }
+}
+
+inline bool isSessionTokenValid(const String &token) {
+  if (token.length() != 32) return false;
+  uint32_t nowSec = millis() / 1000;
+  for (size_t i = 0; i < MAX_ACTIVE_SESSIONS; i++) {
+    if (g_activeSessions[i].active && token == g_activeSessions[i].token) {
+      if (g_activeSessions[i].expiresAt >= nowSec) {
+        return true;
+      } else {
+        g_activeSessions[i].active = false; // 已過期
+      }
+    }
+  }
+  return false;
+}
+
+inline String extractSessionTokenFromCookie(const String &cookieHeader) {
+  int idx = cookieHeader.indexOf("ESPSESSIONID=");
+  if (idx == -1) return "";
+  int start = idx + 13;
+  int end = cookieHeader.indexOf(';', start);
+  if (end == -1) end = cookieHeader.length();
+  String token = cookieHeader.substring(start, end);
+  token.trim();
+  return token;
+}
+
 inline bool isClientAuthenticated() {
-  if (runtimeWebPassword.length() == 0 && String(FACTORY_WEB_PASSWORD).length() == 0) {
+  // 若未設定任何密碼，視為公開存取模式
+  if (runtimeWebPassword.length() == 0) {
     return true;
   }
+
+  // 1. 檢查 Cookie 中的 ESPSESSIONID
   if (server.hasHeader("Cookie")) {
-    String cookie = server.header("Cookie");
-    if (cookie.indexOf("ESPSESSIONID=1") != -1) return true;
-  }
-  if (server.hasHeader("X-Auth-Token")) {
-    String token = server.header("X-Auth-Token");
-    if (token == "1" || token == runtimeWebPassword || token == FACTORY_WEB_PASSWORD || token == "admin") {
+    String token = extractSessionTokenFromCookie(server.header("Cookie"));
+    if (token.length() > 0 && isSessionTokenValid(token)) {
       return true;
     }
   }
+
+  // 2. 檢查 HTTP Header X-Auth-Token
+  if (server.hasHeader("X-Auth-Token")) {
+    String token = server.header("X-Auth-Token");
+    token.trim();
+    if (token.length() > 0 && isSessionTokenValid(token)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -185,6 +269,27 @@ inline void handleFavicon() {
 }
 
 inline void handleIndex() {
+  uint32_t nowSec = millis() / 1000;
+  if (hasFlag(SysFlag::SERVER_MODE) && serverModeEndTime > 0 && nowSec >= serverModeEndTime) {
+    clearFlag(SysFlag::SERVER_MODE);
+    serverModeEndTime = 0;
+  }
+
+  // 1. 若啟用了 Server Mode (自訂網站託管模式)，優先自指定目錄提供首頁
+  if (hasFlag(SysFlag::SERVER_MODE) && SD.cardType() != CARD_NONE) {
+    SpiLock lock;
+    String customIndex = normalizePath(joinPath(serverModeRoot, "index.html"));
+    if (!SD.exists(customIndex)) customIndex = normalizePath(joinPath(serverModeRoot, "index.htm"));
+    if (SD.exists(customIndex)) {
+      File f = SD.open(customIndex, FILE_READ);
+      if (f) {
+        streamFileFast(f, "text/html; charset=utf-8");
+        f.close();
+        return;
+      }
+    }
+  }
+
   if (server.hasHeader("If-None-Match") && server.header("If-None-Match") == "\"v4.1.0\"") {
     server.send(304, "text/html", "");
     return;
@@ -229,8 +334,9 @@ inline void handleLogin() {
   if (runtimeWebPassword.length() == 0) {
     valid = true;
   } else {
-    bool passMatches = (pass == runtimeWebPassword || pass == FACTORY_WEB_PASSWORD || pass == "admin");
-    bool userMatches = (user.length() == 0 || user == runtimeWebUser || user == FACTORY_WEB_USER || user == "admin");
+    // 嚴格比對目前運行密碼與帳號，徹底移除任何後門或 hardcoded bypass
+    bool passMatches = (pass == runtimeWebPassword);
+    bool userMatches = (user.length() == 0 || user == runtimeWebUser);
     if (passMatches && userMatches) {
       valid = true;
     }
@@ -238,9 +344,11 @@ inline void handleLogin() {
 
   if (valid) {
     recordAccessLog(200);
-    server.sendHeader("Set-Cookie", "ESPSESSIONID=1; Path=/; Max-Age=2592000; SameSite=Lax");
-    server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"message\":\"登入成功\"}");
-    logLine("🔑 使用者登入成功 (Session Cookie 已發放)");
+    String token = createNewSession();
+    server.sendHeader("Set-Cookie", "ESPSESSIONID=" + token + "; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax");
+    String resp = "{\"status\":\"ok\",\"success\":true,\"token\":\"" + token + "\",\"message\":\"登入成功\"}";
+    server.send(200, "application/json; charset=utf-8", resp);
+    logLine("🔑 使用者登入成功 (已發放 128-bit 隨機 Session Token)");
   } else {
     recordAccessLog(401);
     server.send(401, "application/json; charset=utf-8", "{\"status\":\"error\",\"success\":false,\"message\":\"帳號或密碼錯誤\"}");
@@ -249,9 +357,17 @@ inline void handleLogin() {
 }
 
 inline void handleLogout() {
-  server.sendHeader("Set-Cookie", "ESPSESSIONID=0; Path=/; Max-Age=0; SameSite=Lax");
+  if (server.hasHeader("Cookie")) {
+    String token = extractSessionTokenFromCookie(server.header("Cookie"));
+    if (token.length() > 0) invalidateSession(token);
+  }
+  if (server.hasHeader("X-Auth-Token")) {
+    String token = server.header("X-Auth-Token");
+    if (token.length() > 0) invalidateSession(token);
+  }
+  server.sendHeader("Set-Cookie", "ESPSESSIONID=; Path=/; Max-Age=0; SameSite=Lax");
   server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"message\":\"已登出\"}");
-  logLine("🚪 使用者已登出");
+  logLine("🚪 使用者已登出 (Session 已撤銷)");
 }
 
 inline void handleAuthStatus() {
@@ -484,10 +600,19 @@ inline void handleDelete() {
 
 inline void handleUploadData() {
   if (server.uri() != "/upload") return;
+  if (!isClientAuthenticated()) {
+    // 未授權請求立即中止上傳並標記錯誤
+    uploadError = "未授權的上傳請求";
+    return;
+  }
+
   SpiLock lock;
   HTTPUpload &upload = server.upload();
   if (upload.status == UPLOAD_FILE_START) {
     g_isUploadingActive = true;
+    uploadError = "";
+    uploadReceivedBytes = 0;
+
     String dir = server.hasArg("dir") ? server.arg("dir") : (server.hasArg("path") ? server.arg("path") : "/");
     dir = normalizePath(dir);
     if (dir.length() == 0) dir = "/";
@@ -496,18 +621,32 @@ inline void handleUploadData() {
     if (server.hasArg("relPath") && server.arg("relPath").length() > 0) {
       fname = server.arg("relPath");
     }
-    uploadTarget = joinPath(dir, fname);
+    // 嚴格正規化並防禦路徑穿越
+    uploadTarget = normalizePath(joinPath(dir, fname));
+
+    // 禁止未授權直接覆蓋關鍵系統設定
+    if (uploadTarget == "/config.json" && !server.hasArg("allow_overwrite_config")) {
+      uploadError = "禁止直接覆蓋系統核心設定檔 (/config.json)";
+      g_isUploadingActive = false;
+      return;
+    }
+
     ensureDirectoryExists(parentPath(uploadTarget));
     if (SD.exists(uploadTarget)) {
+      createFileVersionBackup(uploadTarget);
       SD.remove(uploadTarget);
     }
     uploadFile = SD.open(uploadTarget, FILE_WRITE);
     if (uploadFile) {
       logf("📤 [Upload] 開始接收檔案: %s\n", uploadTarget.c_str());
+    } else {
+      uploadError = "無法在 SD 卡建立檔案: " + uploadTarget;
+      g_isUploadingActive = false;
     }
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (uploadFile && upload.currentSize > 0) {
+    if (uploadFile && upload.currentSize > 0 && uploadError.length() == 0) {
       uploadFile.write(upload.buf, upload.currentSize);
+      uploadReceivedBytes += upload.currentSize;
     }
   } else if (upload.status == UPLOAD_FILE_END) {
     if (uploadFile) {
@@ -519,15 +658,23 @@ inline void handleUploadData() {
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
     if (uploadFile) {
       uploadFile.close();
+      SD.remove(uploadTarget);
     }
     g_isUploadingActive = false;
+    uploadError = "使用者取消上傳或傳輸中斷";
   }
 }
 
 inline void handleUploadDone() {
   g_isUploadingActive = false;
+  if (!requireAuth()) return;
+
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"message\":\"上傳成功\"}");
+  if (uploadError.length() > 0) {
+    server.send(400, "application/json; charset=utf-8", "{\"status\":\"error\",\"success\":false,\"message\":\"" + jsonEscape(uploadError) + "\"}");
+  } else {
+    server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"message\":\"上傳成功\",\"path\":\"" + jsonEscape(uploadTarget) + "\"}");
+  }
 }
 
 inline void createFileVersionBackup(const String &path) {
@@ -1216,12 +1363,20 @@ inline void handleBooksList() {
 }
 
 inline void handleWeatherCurrent() {
-  float temp = 0.0f;
+  float chipTemp = 0.0f;
 #ifdef CONFIG_IDF_TARGET_ESP32S3
-  temp = temperatureRead();
+  chipTemp = temperatureRead();
 #endif
   uint32_t nowSec = millis() / 1000;
-  String json = "{\"uptime\":" + String(nowSec) + ",\"temp\":" + String(temp, 1) + ",\"humidity\":65.0,\"pressure\":1013.25,\"cpuFreq\":" + String(ESP.getCpuFreqMHz()) + ",\"freeHeap\":" + String(ESP.getFreeHeap()) + ",\"freePsram\":" + String(ESP.getFreePsram()) + ",\"interval\":" + String(weatherLogIntervalSec) + ",\"totalLogs\":" + String(totalWeatherLogCount) + "}";
+  // 提供真實晶片結溫監控，清楚標示目前無實體外部溫濕度感測器 (避免假數值誤導)
+  String json = "{\"uptime\":" + String(nowSec)
+              + ",\"chip_temp\":" + String(chipTemp, 1)
+              + ",\"has_external_sensor\":false"
+              + ",\"cpuFreq\":" + String(ESP.getCpuFreqMHz())
+              + ",\"freeHeap\":" + String(ESP.getFreeHeap())
+              + ",\"freePsram\":" + String(ESP.getFreePsram())
+              + ",\"interval\":" + String(weatherLogIntervalSec)
+              + ",\"totalLogs\":" + String(totalWeatherLogCount) + "}";
   server.send(200, "application/json; charset=utf-8", json);
 }
 
@@ -1280,6 +1435,7 @@ inline void handleServerModeEnable() {
   setFlag(SysFlag::SERVER_MODE);
   String resp = "{\"status\":\"ok\",\"success\":true,\"isServerMode\":true,\"root\":\"" + jsonEscape(serverModeRoot) + "\",\"duration\":" + String(duration) + "}";
   server.send(200, "application/json; charset=utf-8", resp);
+  logf("🚀 [Server Mode] 已啟動靜態網站託管模式 (Root: %s, 剩餘時效: %d 分鐘)\n", serverModeRoot.c_str(), duration);
 }
 
 inline void handleServerModeDisable() {
@@ -1287,6 +1443,7 @@ inline void handleServerModeDisable() {
   clearFlag(SysFlag::SERVER_MODE);
   serverModeEndTime = 0;
   server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"isServerMode\":false}");
+  logLine("📴 [Server Mode] 已關閉靜態網站託管模式");
 }
 
 inline void handleServerModeStatus() { handleStatus(); }
@@ -1295,12 +1452,14 @@ inline void handleEmergencyEnable() {
   if (!requireAuth()) return;
   setFlag(SysFlag::EMERGENCY_MODE);
   server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"isEmergencyMode\":true}");
+  logLine("🚨 [Emergency] 急難應變模式已啟動");
 }
 
 inline void handleEmergencyDisable() {
   if (!requireAuth()) return;
   clearFlag(SysFlag::EMERGENCY_MODE);
   server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"isEmergencyMode\":false}");
+  logLine("🚨 [Emergency] 急難應變模式已關閉");
 }
 
 inline void handleEmergencyStatus() { handleStatus(); }
@@ -1330,6 +1489,30 @@ inline void handleEmergencyPostMessage() {
   if (status.length() == 0) status = "safe";
   if (text.length() == 0) return sendText(400, "留言內容不能為空");
 
+  uint32_t msgId = static_cast<uint32_t>(millis() / 1000) ^ static_cast<uint32_t>(esp_random());
+  if (msgId == 0) msgId = 1;
+
+  // 1. 組裝 ESP-NOW 封包並主動向外廣播 (讓周遭節點收到)
+  EspNowEmergencyPacket pkt = {};
+  pkt.msgId = msgId;
+  strncpy(pkt.sender, sender.c_str(), sizeof(pkt.sender) - 1);
+  strncpy(pkt.location, location.c_str(), sizeof(pkt.location) - 1);
+  strncpy(pkt.status, status.c_str(), sizeof(pkt.status) - 1);
+  strncpy(pkt.text, text.c_str(), sizeof(pkt.text) - 1);
+  pkt.hopCount = 0;
+
+  uint8_t broadcastMac[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, broadcastMac, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+  if (!esp_now_is_peer_exist(broadcastMac)) {
+    esp_now_add_peer(&peerInfo);
+  }
+  esp_err_t sendErr = esp_now_send(broadcastMac, (uint8_t *)&pkt, sizeof(pkt));
+  logf("📡 [ESP-NOW Mesh] 發送 Web 急難廣播留言 (ID:%u, 狀態:%d): %s\n", msgId, sendErr, pkt.text);
+
+  // 2. 寫入本地 SD 卡急難留言板
   SpiLock lock;
   String existingJson = "";
   File fRead = SD.open("/emergency/messages.json", FILE_READ);
@@ -1342,7 +1525,7 @@ inline void handleEmergencyPostMessage() {
   if (!existingJson.startsWith("[") || !existingJson.endsWith("]")) existingJson = "[]";
 
   uint32_t nowSec = millis() / 1000;
-  String newItem = "  {\"id\":" + String(nowSec) + ",\"time\":" + String(nowSec) + ",\"sender\":\"" + jsonEscape(sender) + "\",\"status\":\"" + jsonEscape(status) + "\",\"location\":\"" + jsonEscape(location) + "\",\"text\":\"" + jsonEscape(text) + "\"}";
+  String newItem = "  {\"id\":" + String(msgId) + ",\"time\":" + String(nowSec) + ",\"sender\":\"" + jsonEscape(sender) + "\",\"status\":\"" + jsonEscape(status) + "\",\"location\":\"" + jsonEscape(location) + "\",\"text\":\"" + jsonEscape(text) + "\"}";
 
   String updatedJson;
   if (existingJson == "[]") {
@@ -1364,7 +1547,7 @@ inline void handleEmergencyPostMessage() {
     fWrite.print(updatedJson);
     fWrite.flush();
     fWrite.close();
-    server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\"}");
+    server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"msgId\":" + String(msgId) + "}");
   } else {
     sendText(500, "無法寫入 SD 留言板");
   }
@@ -1482,12 +1665,17 @@ inline void handleVersionsRestore() {
 }
 
 inline void handleAiBenchmark() {
+  if (!requireAuth()) return;
   auto startUs = micros();
   volatile float a = 1.0001f, b = 1.0002f, sum = 0.0f;
-  for (int i = 0; i < 1000000; i++) sum += a * b + static_cast<float>(i) * 0.00001f;
+  constexpr int ITERS = 200000;
+  for (int i = 0; i < ITERS; i++) {
+    sum += a * b + static_cast<float>(i) * 0.00001f;
+  }
   auto durationUs = micros() - startUs;
-  auto mflops = (2.0f * 1000000.0f) / static_cast<float>(durationUs);
-  server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"mflops\":" + String(mflops, 2) + ",\"durationUs\":" + String(durationUs) + "}");
+  if (durationUs == 0) durationUs = 1;
+  auto mflops = (2.0f * static_cast<float>(ITERS)) / static_cast<float>(durationUs);
+  server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"mflops\":" + String(mflops, 2) + ",\"durationUs\":" + String(durationUs) + ",\"iterations\":" + String(ITERS) + "}");
 }
 
 inline void handleFactoryReset() {
@@ -1679,6 +1867,21 @@ inline void handleNotFound() {
     server.send(302, "text/plain", "");
     return;
   }
+
+  // 若開啟了 Server Mode，嘗試自自訂目錄尋找相應靜態資源 (CSS, JS, 圖片, HTML)
+  if (hasFlag(SysFlag::SERVER_MODE) && SD.cardType() != CARD_NONE) {
+    String subPath = normalizePath(joinPath(serverModeRoot, uri));
+    SpiLock lock;
+    if (SD.exists(subPath)) {
+      File f = SD.open(subPath, FILE_READ);
+      if (f && !f.isDirectory()) {
+        streamFileFast(f, getMIMEType(subPath));
+        f.close();
+        return;
+      }
+    }
+  }
+
   handleIndex();
 }
 

@@ -41,10 +41,7 @@ inline void handleFtpServer() {
     if (cmd == "USER") {
       ftpClient.println("331 Password required");
     } else if (cmd == "PASS") {
-      bool passMatches = (runtimeWebPassword.length() == 0 ||
-                          arg == runtimeWebPassword ||
-                          arg == FACTORY_WEB_PASSWORD ||
-                          arg == "admin");
+      bool passMatches = (runtimeWebPassword.length() == 0 || arg == runtimeWebPassword);
       if (passMatches) {
         ftpAuthenticated = true;
         ftpClient.println("230 User logged in, proceed.");

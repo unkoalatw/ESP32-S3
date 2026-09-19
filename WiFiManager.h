@@ -17,6 +17,8 @@ inline void startWiFi() {
     logLine("[2/8] Wi-Fi 熱點…… ❌ 建立失敗！請重新開機再試一次。");
   } else {
     logf("[2/8] Wi-Fi 熱點…… ✅ 已建立「%s」\n", runtimeApSsid.c_str());
+    // 啟動 Captive Portal DNS 伺服器 (將所有域名解析導向 192.168.4.1 強制登入頁)
+    captiveDns.start(53, "*", WiFi.softAPIP());
   }
 
   if (MDNS.begin("sdserver")) {
@@ -175,6 +177,9 @@ inline void enableNAPTRepeater() {
 
   uint32_t ap_ip = static_cast<uint32_t>(WiFi.softAPIP());
 
+  // 關閉 Captive Portal DNS 轉發，切換為 NAPT 外網轉發
+  captiveDns.stop();
+
   LOCK_TCPIP_CORE();
   ip_napt_enable(ap_ip, 1);
   UNLOCK_TCPIP_CORE();
@@ -194,14 +199,21 @@ inline void disableNAPTRepeater() {
   ip_napt_enable(ap_ip, 0);
   UNLOCK_TCPIP_CORE();
   clearFlag(SysFlag::NAPT_ENABLED);
-  logLine("📴 網路分享（Wi-Fi 中繼）已關閉。");
+
+  // 重新啟動 Captive Portal DNS
+  captiveDns.start(53, "*", WiFi.softAPIP());
+  logLine("📴 網路分享（Wi-Fi 中繼）已關閉，已恢復 Captive Portal 強制門戶。");
 #else
   clearFlag(SysFlag::NAPT_ENABLED);
 #endif
 }
 
 inline void handleCaptivePortalDNS() {
-  handleDnsRelay();
+  if (hasFlag(SysFlag::NAPT_ENABLED) && WiFi.status() == WL_CONNECTED) {
+    handleDnsRelay();
+  } else {
+    captiveDns.processNextRequest();
+  }
 }
 
 #endif // WIFI_MANAGER_H

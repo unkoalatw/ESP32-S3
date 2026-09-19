@@ -64,7 +64,7 @@ static size_t g_audioRamBufLen = 0;
 static TaskHandle_t g_audioTaskHandle = NULL;
 
 // 專屬 FreeRTOS Core 0 音訊背景讀取與 SD 寫入任務
-inline void audioRecordingTask(void *param) {
+inline void audioRecordingTask(void *pvParameters) {
   int32_t i2s_raw_buffer[128];
   size_t bytes_read = 0;
   int16_t pcm16_buffer[64];
@@ -112,8 +112,8 @@ inline void audioRecordingTask(void *param) {
       if (normPeak > 100) normPeak = 100;
       audioState.lastPeakVolume = static_cast<int16_t>(normPeak);
 
-      // 若處於錄音狀態，先累積於 2KB RAM 緩衝區，滿 1KB 再批次寫入 SD 卡
-      if (audioState.isRecording && audioState.recordFile) {
+      // 若處於錄音狀態且未處於 USB MSC 獨佔模式，累計寫入緩衝區
+      if (audioState.isRecording && audioState.recordFile && !hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
         size_t incomingBytes = mono_count * sizeof(int16_t);
         if (g_audioRamBufLen + incomingBytes <= AUDIO_RAM_BUF_SIZE) {
           memcpy(g_audioRamBuf + g_audioRamBufLen, pcm16_buffer, incomingBytes);
@@ -151,18 +151,27 @@ inline void audioRecordingTask(void *param) {
           }
         }
 
-        // 2. 自動滾動分段：每 15 分鐘 (900秒) 自動切換下一檔
+        // 2. 自動滾動分段：每 15 分鐘 (900秒) 先 flush 殘留 RAM 緩衝區再切換下一檔
         if (audioState.durationSec >= 900) {
           SpiLock lock(pdMS_TO_TICKS(200));
           if (lock.isLocked() && audioState.isRecording && audioState.recordFile) {
             digitalWrite(LCD_CS, HIGH);
             digitalWrite(TOUCH_CS, HIGH);
+
+            // 切檔前徹底將 RAM 緩衝區殘留音訊寫入舊檔案，消除檔案交界資料錯位
+            if (g_audioRamBufLen > 0) {
+              size_t flushed = audioState.recordFile.write(g_audioRamBuf, g_audioRamBufLen);
+              audioState.totalBytesWritten += flushed;
+              g_audioRamBufLen = 0;
+            }
+
             writeWavHeader(audioState.recordFile, audioState.totalBytesWritten);
             audioState.recordFile.flush();
             audioState.recordFile.close();
 
+            uint32_t nextIdx = getNextRecordingIndex();
             char nextFn[48];
-            snprintf(nextFn, sizeof(nextFn), "/recordings/REC_%lu.wav", (unsigned long)(millis() / 1000));
+            snprintf(nextFn, sizeof(nextFn), "/recordings/REC_%06lu.wav", (unsigned long)nextIdx);
             audioState.currentFilename = String(nextFn);
             audioState.recordFile = SD.open(audioState.currentFilename.c_str(), FILE_WRITE);
             if (audioState.recordFile) {
@@ -171,7 +180,7 @@ inline void audioRecordingTask(void *param) {
               audioState.totalBytesWritten = 0;
               audioState.startTime = millis();
               audioState.durationSec = 0;
-              logf("🎙️ [AUDIO] 自動分段滾動錄音: %s\n", audioState.currentFilename.c_str());
+              logf("🎙️ [AUDIO] 自動分段滾動錄音 (無縫切檔): %s\n", audioState.currentFilename.c_str());
             }
             digitalWrite(SD_CS, HIGH);
           }
@@ -238,8 +247,9 @@ inline bool startAudioRecording() {
   digitalWrite(LCD_CS, HIGH);
   digitalWrite(TOUCH_CS, HIGH);
 
+  uint32_t recIdx = getNextRecordingIndex();
   char filenameBuf[48];
-  snprintf(filenameBuf, sizeof(filenameBuf), "/recordings/REC_%lu.wav", (unsigned long)(millis() / 1000));
+  snprintf(filenameBuf, sizeof(filenameBuf), "/recordings/REC_%06lu.wav", (unsigned long)recIdx);
   audioState.currentFilename = String(filenameBuf);
   audioState.recordFile = SD.open(audioState.currentFilename.c_str(), FILE_WRITE);
 

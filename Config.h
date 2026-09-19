@@ -28,10 +28,11 @@
 #include "lwip/tcpip.h"
 #include "esp_netif.h"
 
+#include <atomic>
 #include "index_html.h"
 
 // ---------------------------------------------------------------------------
-// 系統位元遮罩旗標 (Bitwise Math Flags)
+// 系統位元遮罩旗標 (Bitwise Math Flags - 採用 std::atomic 確保跨核心線程安全)
 // ---------------------------------------------------------------------------
 namespace SysFlagBit {
   constexpr uint8_t USB_MOUNTED       = 0;
@@ -43,21 +44,23 @@ namespace SysFlagBit {
   constexpr uint8_t WAS_CONNECTED     = 6;
   constexpr uint8_t UPLOAD_AUTH       = 7;
   constexpr uint8_t UPLOAD_OVERWRITE  = 8;
+  constexpr uint8_t USB_EXCLUSIVE_LOCK = 9;
 }
 
 namespace SysFlag {
-  constexpr uint32_t USB_MOUNTED       = 1UL << SysFlagBit::USB_MOUNTED;
-  constexpr uint32_t SERVER_MODE       = 1UL << SysFlagBit::SERVER_MODE;
-  constexpr uint32_t EMERGENCY_MODE    = 1UL << SysFlagBit::EMERGENCY_MODE;
-  constexpr uint32_t THERMAL_THROTTLED = 1UL << SysFlagBit::THERMAL_THROTTLED;
-  constexpr uint32_t NAPT_ENABLED      = 1UL << SysFlagBit::NAPT_ENABLED;
-  constexpr uint32_t ESPNOW_INBOX_FULL = 1UL << SysFlagBit::ESPNOW_INBOX_FULL;
-  constexpr uint32_t WAS_CONNECTED     = 1UL << SysFlagBit::WAS_CONNECTED;
-  constexpr uint32_t UPLOAD_AUTH       = 1UL << SysFlagBit::UPLOAD_AUTH;
-  constexpr uint32_t UPLOAD_OVERWRITE  = 1UL << SysFlagBit::UPLOAD_OVERWRITE;
+  constexpr uint32_t USB_MOUNTED        = 1UL << SysFlagBit::USB_MOUNTED;
+  constexpr uint32_t SERVER_MODE        = 1UL << SysFlagBit::SERVER_MODE;
+  constexpr uint32_t EMERGENCY_MODE     = 1UL << SysFlagBit::EMERGENCY_MODE;
+  constexpr uint32_t THERMAL_THROTTLED  = 1UL << SysFlagBit::THERMAL_THROTTLED;
+  constexpr uint32_t NAPT_ENABLED       = 1UL << SysFlagBit::NAPT_ENABLED;
+  constexpr uint32_t ESPNOW_INBOX_FULL  = 1UL << SysFlagBit::ESPNOW_INBOX_FULL;
+  constexpr uint32_t WAS_CONNECTED      = 1UL << SysFlagBit::WAS_CONNECTED;
+  constexpr uint32_t UPLOAD_AUTH        = 1UL << SysFlagBit::UPLOAD_AUTH;
+  constexpr uint32_t UPLOAD_OVERWRITE   = 1UL << SysFlagBit::UPLOAD_OVERWRITE;
+  constexpr uint32_t USB_EXCLUSIVE_LOCK = 1UL << SysFlagBit::USB_EXCLUSIVE_LOCK;
 }
 
-extern volatile uint32_t systemFlags;
+extern std::atomic<uint32_t> systemFlags;
 extern SemaphoreHandle_t g_spiMutex;
 
 inline void initSpiMutex() {
@@ -88,22 +91,22 @@ public:
   SpiLock &operator=(const SpiLock &) = delete;
 };
 
-inline void setFlag(uint32_t flag) { systemFlags |= flag; }
-inline void clearFlag(uint32_t flag) { systemFlags &= ~flag; }
-inline bool hasFlag(uint32_t flag) { return (systemFlags & flag) != 0; }
-inline bool readSysBit(uint8_t bitPos) { return (systemFlags & (1UL << bitPos)) != 0; }
-inline void setSysBit(uint8_t bitPos) { systemFlags |= (1UL << bitPos); }
-inline void clearSysBit(uint8_t bitPos) { systemFlags &= ~(1UL << bitPos); }
+inline void setFlag(uint32_t flag) { systemFlags.fetch_or(flag, std::memory_order_relaxed); }
+inline void clearFlag(uint32_t flag) { systemFlags.fetch_and(~flag, std::memory_order_relaxed); }
+inline bool hasFlag(uint32_t flag) { return (systemFlags.load(std::memory_order_relaxed) & flag) != 0; }
+inline bool readSysBit(uint8_t bitPos) { return (systemFlags.load(std::memory_order_relaxed) & (1UL << bitPos)) != 0; }
+inline void setSysBit(uint8_t bitPos) { systemFlags.fetch_or(1UL << bitPos, std::memory_order_relaxed); }
+inline void clearSysBit(uint8_t bitPos) { systemFlags.fetch_and(~(1UL << bitPos), std::memory_order_relaxed); }
 
 // ---------------------------------------------------------------------------
-// 出廠預設值 (Factory Defaults)
+// 出廠預設值 (Factory Defaults - 安全通用預設，首次啟動請至後台修改)
 // ---------------------------------------------------------------------------
-constexpr char FACTORY_WIFI_SSID[]     = "DANAStartHouse";
-constexpr char FACTORY_WIFI_PASSWORD[] = "1111111111";
-constexpr char FACTORY_AP_SSID[]       = "ESP32-SDrive";
-constexpr char FACTORY_AP_PASSWORD[]   = "0000000000";
-constexpr char FACTORY_WEB_USER[]      = "littletiger0815@gmail.com";
-constexpr char FACTORY_WEB_PASSWORD[]  = "littletiger@1215312836";
+constexpr char FACTORY_WIFI_SSID[]     = "YOUR_WIFI_SSID";
+constexpr char FACTORY_WIFI_PASSWORD[] = "";
+constexpr char FACTORY_AP_SSID[]       = "ESP32-SD-HUB";
+constexpr char FACTORY_AP_PASSWORD[]   = "12345678";
+constexpr char FACTORY_WEB_USER[]      = "admin";
+constexpr char FACTORY_WEB_PASSWORD[]  = "admin123";
 
 // 運行時動態設定（支援 NVS 快閃記憶體 + SD 卡雙向同步）
 extern String runtimeWifiSsid;

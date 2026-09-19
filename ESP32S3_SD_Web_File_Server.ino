@@ -24,7 +24,7 @@
 // 全域實體與狀態定義（全專案唯一實體）
 // ---------------------------------------------------------------------------
 SemaphoreHandle_t g_spiMutex = NULL;
-volatile uint32_t systemFlags = 0;
+std::atomic<uint32_t> systemFlags{0};
 volatile uint32_t lastUsbActivity = 0;
 
 DNSServer captiveDns;

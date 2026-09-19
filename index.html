@@ -4134,6 +4134,30 @@ button:active, [role="button"]:active {
   </script>
 <script>
 // ---------------------------------------------------------------------------
+// 全域 HTML 跳脫轉義器 (防禦 Stored XSS 攻擊)
+// ---------------------------------------------------------------------------
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml;
+
+function sanitizeHtml(html) {
+  if (!html) return '';
+  return String(html)
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/on\w+\s*=\s*[^>\s]+/gi, '')
+    .replace(/href\s*=\s*(['"])javascript:.*?\1/gi, 'href="#"');
+}
+window.sanitizeHtml = sanitizeHtml;
+
+// ---------------------------------------------------------------------------
 // 全域立即就緒視圖切換器 (Global Top-Level View Switcher)
 // 確保 HTML 側邊欄與按鈕在任何載入階段點擊時 100% 秒速響應，0 拋錯
 // ---------------------------------------------------------------------------
@@ -6830,9 +6854,10 @@ tdActions.className = 'py-3 px-4 text-right align-middle';
 let isDirectory = (item.isDir === true || item.directory === true);
 let itemPath = item.path || (currentPath === '/' ? '/' + item.name : currentPath + '/' + item.name);
 let ext = item.name.lastIndexOf('.') >= 0 ? item.name.substring(item.name.lastIndexOf('.')).toLowerCase() : '';
+let safeName = escapeHtml(item.name);
 if (isDirectory) {
 tdName.className = 'py-3 px-4 font-black text-black cursor-pointer align-middle';
-tdName.innerHTML = '<div class="flex items-center gap-2"><span><span class="ico ico-folder"></span></span><a href="javascript:void(0)" class="text-blue-600 underline hover:text-blue-800">' + item.name + '</a></div>';
+tdName.innerHTML = '<div class="flex items-center gap-2"><span><span class="ico ico-folder"></span></span><a href="javascript:void(0)" class="text-blue-600 underline hover:text-blue-800">' + safeName + '</a></div>';
 tr.onclick = function(e) {
 if (!e.target.closest('button') && !e.target.closest('a') && !e.target.closest('.file-dropdown-menu')) {
 loadFiles(itemPath);
@@ -6847,10 +6872,10 @@ else if (['.mp4','.webm','.mov','.avi'].includes(ext)) iconStr = '<span class="i
 else if (['.mp3','.wav','.flac','.aac','.ogg'].includes(ext)) iconStr = '<span class="ico ico-music"></span>';
 else if (['.txt','.py','.js','.json','.cpp','.h','.css','.c','.md'].includes(ext)) iconStr = '<span class="ico ico-pencil-line"></span>';
 if (ext === '.html' || ext === '.htm') {
-tdName.innerHTML = '<div class="flex items-center gap-2 cursor-pointer text-blue-600 hover:underline font-black"><span><span class="ico ico-globe"></span></span><span>' + item.name + '</span></div>';
+tdName.innerHTML = '<div class="flex items-center gap-2 cursor-pointer text-blue-600 hover:underline font-black"><span><span class="ico ico-globe"></span></span><span>' + safeName + '</span></div>';
 tdName.onclick = function() { openHtmlPreviewer(itemPath); };
 } else {
-tdName.innerHTML = '<div class="flex items-center gap-2"><span>' + iconStr + '</span><span>' + item.name + '</span></div>';
+tdName.innerHTML = '<div class="flex items-center gap-2"><span>' + iconStr + '</span><span>' + safeName + '</span></div>';
 }
 let sz = item.size || 0;
 let szStr = (sz > 1048576) ? (sz/1048576).toFixed(1) + ' MB' : (sz/1024).toFixed(1) + ' KB';
@@ -7145,9 +7170,10 @@ function applyDocViewMode() {
     if (body) {
       body.classList.remove('hidden');
       if (typeof marked !== 'undefined') {
-        body.innerHTML = marked.parse(curText);
+        const rawParsed = marked.parse(curText);
+        body.innerHTML = (typeof sanitizeHtml === 'function') ? sanitizeHtml(rawParsed) : rawParsed;
       } else {
-        body.innerHTML = '<pre class="bg-slate-950 text-cyan-300 p-4 rounded-xl overflow-x-auto leading-relaxed">' + curText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+        body.innerHTML = '<pre class="bg-slate-950 text-cyan-300 p-4 rounded-xl overflow-x-auto leading-relaxed">' + escapeHtml(curText) + '</pre>';
       }
     }
     if (editBox) editBox.classList.add('hidden');
@@ -10560,16 +10586,20 @@ img.src = URL.createObjectURL(file);
       tr.ondblclick = () => handleWin11ItemOpen(fullPath, isDir, ext);
       tr.oncontextmenu = (e) => handleWin11ItemContextMenu(e, fullPath, item.name, isDir);
 
+      const safeName = escapeHtml(item.name);
+      const safePath = escapeHtml(fullPath);
+      const safeTypeName = escapeHtml(typeName);
+
       tr.innerHTML = `
         <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
-          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleWin11SingleSelect('${fullPath}', this.checked)" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer" />
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleWin11SingleSelect('${safePath}', this.checked)" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer" />
         </td>
         <td class="py-2.5 px-3 font-semibold flex items-center gap-2.5 truncate max-w-md">
           <span class="text-base flex-shrink-0">${icon}</span>
-          <span class="truncate ${isDir ? 'text-blue-300 font-bold hover:underline' : ''}">${item.name}</span>
+          <span class="truncate ${isDir ? 'text-blue-300 font-bold hover:underline' : ''}">${safeName}</span>
         </td>
         <td class="py-2.5 px-3 text-slate-400 text-xs truncate">
-          ${typeName}
+          ${safeTypeName}
         </td>
         <td class="py-2.5 px-3 font-mono text-xs text-slate-400 text-right">
           ${sizeStr}
@@ -10577,12 +10607,12 @@ img.src = URL.createObjectURL(file);
         <td class="py-2.5 px-3 text-right" onclick="event.stopPropagation()">
           <div class="flex items-center justify-end gap-1.5">
             ${isDir ? `
-              <button type="button" onclick="navigateTo('${fullPath}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs" title="進入資料夾">
+              <button type="button" onclick="navigateTo('${safePath}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs" title="進入資料夾">
                 進入 ➜
               </button>
             ` : `
               ${ext === '.pdf' ? `
-              <button type="button" onclick="convertPdfToTxtOnSd('${fullPath}', '${item.name}')" class="px-2 py-1 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 rounded-lg text-xs font-bold" title="從 PDF 擷取純文字小說 (.txt)">
+              <button type="button" onclick="convertPdfToTxtOnSd('${safePath}', '${safeName}')" class="px-2 py-1 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 rounded-lg text-xs font-bold" title="從 PDF 擷取純文字小說 (.txt)">
                 📄 轉TXT
               </button>
             ` : ''}

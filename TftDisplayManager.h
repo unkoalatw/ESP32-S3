@@ -1174,7 +1174,9 @@ inline bool checkTouchPressed() {
   lastZ1   = z1;
 
   bool inValidRange = (x1 >= 100 && x1 <= 3900 && y1 >= 100 && y1 <= 3900);
-  bool isTouched    = (irq || z1 > 50 || x1 > 200) && inValidRange;
+  // 嚴格判定：必須有 PENIRQ 中斷拉低 + Z1 壓力感應大於閾值 + ADC 數值落在有效螢幕區間
+  // 徹底杜絕無觸碰時因 SPI 匯流排浮接或雜訊導致的幽靈亂點 (Phantom Touch)
+  bool isTouched    = irq && (z1 > 40) && inValidRange;
 
   if (isTouched) {
     int32_t cx = map(static_cast<int32_t>(x1), 3650, 350, 0, TFT_WIDTH);
@@ -1196,8 +1198,9 @@ inline void handleTouchEvents() {
   if (!g_isScreenOn) return;
   bool isPressed = checkTouchPressed();
 
+  // 必須等手指真正離開螢幕表面 (!isPressed) 才能解除鎖定，杜絕長按重複誤觸
   if (requireFingerRelease) {
-    if (!isPressed || (millis() - fingerReleaseLockTime > 250)) {
+    if (!isPressed) {
       requireFingerRelease = false;
     } else {
       return;
