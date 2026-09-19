@@ -109,6 +109,10 @@ inline void handleFtpServer() {
         ftpClient.println("550 Could not get file size.");
       }
     } else if (cmd == "DELE") {
+      if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+        ftpClient.println("451 SD Card is exclusively locked by USB MSC.");
+        return;
+      }
       String target = normalizePath(arg.startsWith("/") ? arg : joinPath(ftpCurrentDir, arg));
       SpiLock lock;
       if (SD.remove(target)) {
@@ -117,6 +121,10 @@ inline void handleFtpServer() {
         ftpClient.println("550 File delete failed.");
       }
     } else if (cmd == "MKD") {
+      if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+        ftpClient.println("451 SD Card is exclusively locked by USB MSC.");
+        return;
+      }
       String target = normalizePath(arg.startsWith("/") ? arg : joinPath(ftpCurrentDir, arg));
       if (ensureDirectoryExists(target)) {
         ftpClient.println("257 Directory created.");
@@ -124,6 +132,10 @@ inline void handleFtpServer() {
         ftpClient.println("550 Directory creation failed.");
       }
     } else if (cmd == "RMD") {
+      if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+        ftpClient.println("451 SD Card is exclusively locked by USB MSC.");
+        return;
+      }
       String target = normalizePath(arg.startsWith("/") ? arg : joinPath(ftpCurrentDir, arg));
       if (removeRecursive(target)) {
         ftpClient.println("250 Directory removed.");
@@ -187,6 +199,10 @@ inline void handleFtpServer() {
         ftpClient.println("550 File not found");
       }
     } else if (cmd == "STOR") {
+      if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+        ftpClient.println("451 SD Card is exclusively locked by USB MSC.");
+        return;
+      }
       String target = normalizePath(arg.startsWith("/") ? arg : joinPath(ftpCurrentDir, arg));
       ensureDirectoryExists(parentPath(target));
       SpiLock lock;

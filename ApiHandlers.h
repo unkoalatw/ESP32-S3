@@ -174,6 +174,31 @@ inline bool requireAuth() {
 }
 
 // ---------------------------------------------------------------------------
+// 網站託管計時器自動到期狀態機
+// ---------------------------------------------------------------------------
+inline void updateServerModeExpiry() {
+  if (!hasFlag(SysFlag::SERVER_MODE)) return;
+  if (serverModeEndTime == 0) return;
+  uint32_t nowSec = millis() / 1000;
+  if (nowSec >= serverModeEndTime) {
+    clearFlag(SysFlag::SERVER_MODE);
+    serverModeEndTime = 0;
+    logLine("⏰ [Server Mode] 網站託管計時器已到期，已自動復原常規管理模式");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 儲存寫入獨佔安全檢查 (防止 USB MSC 與內部 FatFS 衝突)
+// ---------------------------------------------------------------------------
+inline bool checkStorageWritable() {
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+    server.send(503, "application/json; charset=utf-8", "{\"status\":\"error\",\"error\":\"SD 卡目前由 USB 隨身碟模式獨佔寫入中，請先退出 USB\"}");
+    return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // 前置宣告 (53 RESTful API Handlers)
 // ---------------------------------------------------------------------------
 inline void handleIndex();
@@ -269,11 +294,7 @@ inline void handleFavicon() {
 }
 
 inline void handleIndex() {
-  uint32_t nowSec = millis() / 1000;
-  if (hasFlag(SysFlag::SERVER_MODE) && serverModeEndTime > 0 && nowSec >= serverModeEndTime) {
-    clearFlag(SysFlag::SERVER_MODE);
-    serverModeEndTime = 0;
-  }
+  updateServerModeExpiry();
 
   // 1. 若啟用了 Server Mode (自訂網站託管模式)，優先自指定目錄提供首頁
   if (hasFlag(SysFlag::SERVER_MODE) && SD.cardType() != CARD_NONE) {
@@ -290,20 +311,10 @@ inline void handleIndex() {
     }
   }
 
+  // 2. 常規管理介面：一律自韌體高速分發最新的 INDEX_HTML_GZ，杜絕 SD 舊版覆蓋漏洞
   if (server.hasHeader("If-None-Match") && server.header("If-None-Match") == "\"v4.1.0\"") {
     server.send(304, "text/html", "");
     return;
-  }
-  if (SD.cardType() != CARD_NONE) {
-    SpiLock lock;
-    if (SD.exists("/index.html")) {
-      auto f = SD.open("/index.html", FILE_READ);
-      if (f) {
-        server.streamFile(f, "text/html; charset=utf-8");
-        f.close();
-        return;
-      }
-    }
   }
   server.sendHeader("Content-Encoding", "gzip");
   server.sendHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
@@ -537,6 +548,7 @@ inline void handleView() {
 
 inline void handleMkdir() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   String path = server.arg("path");
   if (path.length() == 0) {
     String parent = server.arg("parent");
@@ -552,6 +564,7 @@ inline void handleMkdir() {
 
 inline void handleRename() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   String oldPath = server.arg("oldPath");
   if (oldPath.length() == 0) oldPath = server.arg("path");
   if (oldPath.length() == 0) oldPath = server.arg("from");
@@ -586,6 +599,7 @@ inline void handleMove() { handleRename(); }
 
 inline void handleDelete() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   auto path = normalizePath(server.arg("path"));
   if (path.length() == 0 || path == "/" || path == "/.system") {
     server.send(400, "application/json; charset=utf-8", "{\"status\":\"error\",\"error\":\"無法刪除根目錄\"}");
@@ -601,8 +615,11 @@ inline void handleDelete() {
 inline void handleUploadData() {
   if (server.uri() != "/upload") return;
   if (!isClientAuthenticated()) {
-    // 未授權請求立即中止上傳並標記錯誤
     uploadError = "未授權的上傳請求";
+    return;
+  }
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+    uploadError = "SD 卡目前由 USB 隨身碟模式獨佔寫入中";
     return;
   }
 
@@ -623,6 +640,12 @@ inline void handleUploadData() {
     }
     // 嚴格正規化並防禦路徑穿越
     uploadTarget = normalizePath(joinPath(dir, fname));
+
+    if (uploadTarget.length() <= 1 || uploadTarget == "/") {
+      uploadError = "無效的上傳檔案路徑";
+      g_isUploadingActive = false;
+      return;
+    }
 
     // 禁止未授權直接覆蓋關鍵系統設定
     if (uploadTarget == "/config.json" && !server.hasArg("allow_overwrite_config")) {
@@ -719,6 +742,7 @@ inline void handleWrite() {
   }
 
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
 
   if (SD.cardType() == CARD_NONE) {
     sendText(500, "SD卡未掛載");
@@ -790,6 +814,7 @@ inline void handleWrite() {
 
 inline void handleUnzip() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   auto zipPath = normalizePath(server.arg("path"));
   auto destDir = normalizePath(server.arg("destDir"));
   if (destDir.length() == 0) destDir = parentPath(zipPath);
@@ -1588,6 +1613,7 @@ inline void handleUploadStatus() {
 
 inline void handleUploadChunk() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   String path = normalizePath(server.arg("path"));
   size_t offset = server.arg("offset").toInt();
   ensureDirectoryExists(parentPath(path));
@@ -1634,6 +1660,7 @@ inline void handleVersionsList() {
 
 inline void handleVersionsRestore() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   String verFile = server.arg("verFile");
   if (verFile.length() == 0) verFile = server.arg("backupPath");
   verFile = normalizePath(verFile);
@@ -1702,6 +1729,7 @@ inline void handleFactoryReset() {
 
 inline void handleUndo() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   String trashPath = normalizePath(server.arg("path"));
   String origPath  = normalizePath(server.arg("original"));
   if (trashPath.length() == 0 || origPath.length() == 0) {
@@ -1723,6 +1751,7 @@ inline void handleUndo() {
 
 inline void handleEmptyTrash() {
   if (!requireAuth()) return;
+  if (!checkStorageWritable()) return;
   if (SD.exists("/.trash")) {
     removeRecursive("/.trash");
     ensureDirectoryExists("/.trash");
@@ -1861,6 +1890,7 @@ inline void handleWiringDiagnostic() {
 }
 
 inline void handleNotFound() {
+  updateServerModeExpiry();
   String uri = server.uri();
   if (uri == "/generate_204" || uri == "/gen_204" || uri.endsWith("/nui") || uri.endsWith("/redirect") || uri == "/canonical.html") {
     server.sendHeader("Location", "http://192.168.4.1/", true);

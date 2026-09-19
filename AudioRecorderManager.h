@@ -2,6 +2,7 @@
 #define AUDIO_RECORDER_MANAGER_H
 
 #include "Config.h"
+#include <Preferences.h>
 #include "driver/i2s.h"
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,35 @@ inline void writeWavHeader(File &file, uint32_t totalDataLen) {
   // data Subchunk
   file.write((const uint8_t *)"data", 4);
   file.write((const uint8_t *)&totalDataLen, 4);
+}
+
+// ---------------------------------------------------------------------------
+// NVS 序號持久化防重疊：生成獨立不碰撞之錄音檔名
+// ---------------------------------------------------------------------------
+inline uint32_t getNextRecordingIndex() {
+  Preferences prefs;
+  prefs.begin("audio_rec", false);
+  uint32_t index = prefs.getUInt("rec_counter", 0);
+  index++;
+  if (index == 0) {
+    index = 1;
+  }
+  prefs.putUInt("rec_counter", index);
+  prefs.end();
+  return index;
+}
+
+inline String generateUniqueRecordingPath() {
+  char pathBuf[48];
+  uint32_t idx = getNextRecordingIndex();
+  snprintf(pathBuf, sizeof(pathBuf), "/recordings/REC_%06lu.wav", (unsigned long)idx);
+
+  // 雙重防禦：若 SD 卡上已存在同名檔案 (例如 NVS 被清空)，自動向後遞增直到無衝突
+  while (SD.exists(pathBuf)) {
+    idx = getNextRecordingIndex();
+    snprintf(pathBuf, sizeof(pathBuf), "/recordings/REC_%06lu.wav", (unsigned long)idx);
+  }
+  return String(pathBuf);
 }
 
 constexpr size_t AUDIO_RAM_BUF_SIZE = 2048;
@@ -169,10 +199,7 @@ inline void audioRecordingTask(void *pvParameters) {
             audioState.recordFile.flush();
             audioState.recordFile.close();
 
-            uint32_t nextIdx = getNextRecordingIndex();
-            char nextFn[48];
-            snprintf(nextFn, sizeof(nextFn), "/recordings/REC_%06lu.wav", (unsigned long)nextIdx);
-            audioState.currentFilename = String(nextFn);
+            audioState.currentFilename = generateUniqueRecordingPath();
             audioState.recordFile = SD.open(audioState.currentFilename.c_str(), FILE_WRITE);
             if (audioState.recordFile) {
               uint8_t dummyHeader[44] = {0};
@@ -236,6 +263,10 @@ inline void initI2SMicrophone() {
 
 inline bool startAudioRecording() {
   if (audioState.isRecording) return true;
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+    logLine("❌ [AUDIO] USB 隨身碟模式獨佔中，無法開啟錄音！");
+    return false;
+  }
   if (SD.cardType() == CARD_NONE) {
     logLine("❌ [AUDIO] 未偵測到 SD 卡，無法開始錄音！");
     return false;
@@ -247,10 +278,7 @@ inline bool startAudioRecording() {
   digitalWrite(LCD_CS, HIGH);
   digitalWrite(TOUCH_CS, HIGH);
 
-  uint32_t recIdx = getNextRecordingIndex();
-  char filenameBuf[48];
-  snprintf(filenameBuf, sizeof(filenameBuf), "/recordings/REC_%06lu.wav", (unsigned long)recIdx);
-  audioState.currentFilename = String(filenameBuf);
+  audioState.currentFilename = generateUniqueRecordingPath();
   audioState.recordFile = SD.open(audioState.currentFilename.c_str(), FILE_WRITE);
 
   if (!audioState.recordFile) {

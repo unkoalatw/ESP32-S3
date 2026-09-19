@@ -6621,6 +6621,39 @@ function switchView(viewName) {
 }
 
     
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function sanitizeHtml(html) {
+      if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
+        return DOMPurify.sanitize(html);
+      }
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const dangerous = doc.querySelectorAll('script, iframe, object, embed, form, input, button');
+        dangerous.forEach(el => el.remove());
+        const allElements = doc.body.querySelectorAll('*');
+        allElements.forEach(el => {
+          Array.from(el.attributes).forEach(attr => {
+            if (attr.name.startsWith('on') || attr.value.trim().toLowerCase().startsWith('javascript:')) {
+              el.removeAttribute(attr.name);
+            }
+          });
+        });
+        return doc.body.innerHTML;
+      } catch (e) {
+        return escapeHtml(html);
+      }
+    }
+
     function showToast(message, type, duration) {
       type = type || 'info'; duration = duration || 3500;
       let container = document.getElementById('toastContainer');
@@ -6640,7 +6673,13 @@ function switchView(viewName) {
       const icons = { info: 'ℹ️', success: '✅', error: '❌', warning: '⚠️' };
       const toast = document.createElement('div');
       toast.style.cssText = 'padding:14px 20px;border-radius:16px;border:1px solid ' + (accents[type]||accents.info) + '33;font-size:13px;font-weight:600;color:#f1f5f9;background:' + (gradients[type]||gradients.info) + ';backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.05) inset,0 0 20px ' + (accents[type]||accents.info) + '15;animation:toastSlideIn 0.35s cubic-bezier(0.22,1,0.36,1);display:flex;align-items:center;gap:10px;cursor:pointer;letter-spacing:0.01em;';
-      toast.innerHTML = '<span style="font-size:16px">' + (icons[type]||icons.info) + '</span><span>' + message + '</span>';
+      const iconSpan = document.createElement('span');
+      iconSpan.style.fontSize = '16px';
+      iconSpan.textContent = icons[type] || icons.info;
+      const textSpan = document.createElement('span');
+      textSpan.textContent = message;
+      toast.appendChild(iconSpan);
+      toast.appendChild(textSpan);
       toast.onclick = function() { toast.style.animation='toastSlideOut 0.3s ease forwards'; setTimeout(function(){toast.remove();},300); };
       container.appendChild(toast);
       setTimeout(function(){ toast.style.animation='toastSlideOut 0.3s ease forwards'; setTimeout(function(){toast.remove();},300); }, duration);
@@ -9218,7 +9257,8 @@ function renderCurrentSlide() {
   if (totSpan) totSpan.innerText = currentSlides.length;
   const markdown = currentSlides[currentSlideIdx] || '';
   if (canvas) {
-    canvas.innerHTML = '<div class="markdown-body text-xl space-y-4 text-white">' + (typeof marked !== 'undefined' ? marked.parse(markdown) : markdown) + '</div>';
+    const rawHtml = typeof marked !== 'undefined' ? marked.parse(markdown) : escapeHtml(markdown);
+    canvas.innerHTML = '<div class="markdown-body text-xl space-y-4 text-white">' + sanitizeHtml(rawHtml) + '</div>';
   }
 }
 function prevSlide() {
@@ -9535,9 +9575,24 @@ img.src = URL.createObjectURL(file);
         const res = await fetch('/api/weather/current');
         if (res.ok) {
           const data = await res.json();
-          document.getElementById('wtTempDisplay').innerText = (data.temp !== undefined ? data.temp.toFixed(1) : '26.5') + ' °C';
-          document.getElementById('wtHumidityDisplay').innerText = (data.humidity !== undefined ? data.humidity.toFixed(1) : '68.0') + ' %';
-          document.getElementById('wtPressureDisplay').innerText = (data.pressure !== undefined ? data.pressure.toFixed(1) : '1013.2') + ' hPa';
+          const tempElem = document.getElementById('wtTempDisplay');
+          const humElem = document.getElementById('wtHumidityDisplay');
+          const pressElem = document.getElementById('wtPressureDisplay');
+          if (tempElem) {
+            if (data.temp !== undefined && data.temp !== null) {
+              tempElem.innerText = data.temp.toFixed(1) + ' °C';
+            } else if (data.chip_temp !== undefined && data.chip_temp !== null) {
+              tempElem.innerText = data.chip_temp.toFixed(1) + ' °C (MCU)';
+            } else {
+              tempElem.innerText = '-- °C';
+            }
+          }
+          if (humElem) {
+            humElem.innerText = (data.humidity !== undefined && data.humidity !== null) ? (data.humidity.toFixed(1) + ' %') : '-- %';
+          }
+          if (pressElem) {
+            pressElem.innerText = (data.pressure !== undefined && data.pressure !== null) ? (data.pressure.toFixed(1) + ' hPa') : '-- hPa';
+          }
         }
       } catch(e) {}
     }
@@ -9555,10 +9610,13 @@ img.src = URL.createObjectURL(file);
           }
           let items = '';
           list.forEach(item => {
+            const safeName = escapeHtml(item.name || '');
+            const safePath = encodeURIComponent(item.path || '');
+            const safeSize = ((item.size || 0) / 1024).toFixed(1);
             items += '<div class="neo-box p-4 rounded-xl bg-cyan-50 flex flex-col justify-between space-y-2 border-2 border-black">';
-            items += '  <div class="font-black text-sm text-black">📄 ' + item.name + '</div>';
-            items += '  <div class="text-xs font-mono font-bold text-slate-600">大小: ' + (item.size/1024).toFixed(1) + ' KB</div>';
-            items += '  <a href="/download?path=' + encodeURIComponent(item.path) + '" class="neo-btn py-1 bg-cyan-300 text-black text-xs font-black text-center rounded-lg border-2 border-black">下載 CSV</a>';
+            items += '  <div class="font-black text-sm text-black">📄 ' + safeName + '</div>';
+            items += '  <div class="text-xs font-mono font-bold text-slate-600">大小: ' + safeSize + ' KB</div>';
+            items += '  <a href="/download?path=' + safePath + '" class="neo-btn py-1 bg-cyan-300 text-black text-xs font-black text-center rounded-lg border-2 border-black">下載 CSV</a>';
             items += '</div>';
           });
           container.innerHTML = items;

@@ -50,7 +50,7 @@ inline void checkWeatherLogTimer() {
 
 #if CONFIG_IDF_TARGET_ESP32S3
   // USB 隨身碟活動時暫停寫入 SD 卡，防止 FAT 檔案系統損毀
-  if (hasFlag(SysFlag::USB_MOUNTED) && (millis() - lastUsbActivity < 5000)) {
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK) || (hasFlag(SysFlag::USB_MOUNTED) && (millis() - lastUsbActivity < 5000))) {
     return;
   }
 #endif
