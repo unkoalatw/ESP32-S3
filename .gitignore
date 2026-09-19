@@ -1,0 +1,13 @@
+# Compiled / Build Output
+build/
+*.bin
+*.elf
+*.hex
+
+# IDE / Editor Files
+.vscode/
+.idea/
+.claude/
+.gemini/
+*.log
+*.tmp
