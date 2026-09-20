@@ -4540,88 +4540,268 @@ window.closeMobileMenu = closeMobileMenu;
 
     <div class="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6 flex-1 main-container">
       
-      <!-- DASHBOARD  -->
+      <!-- DASHBOARD (SaaS Analytical Execution Intelligence & Throughput) -->
       <section id="viewDashboard" class="space-y-6">
-        <div class="glass-card p-4 sm:p-6 rounded-2xl bg-gradient-to-r from-brand-900/40 via-dark-800 to-slate-900/60 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 hero-box">
-          <div class="space-y-2">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 text-xs font-semibold border border-brand-500/20">
-              <span class="ico ico-zap"></span> 企業級工業雲端伺服器 (INDUSTRIAL ENTERPRISE)
+        <!-- Top Sub-Header & Action Controls -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="inline-flex items-center gap-2 text-[11px] font-bold text-blue-400 uppercase tracking-widest">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> SPRINT VELOCITY ANALYTICS • Cycle 24.2 Active
             </div>
-            <h3 class="text-xl font-bold text-white tracking-tight">ESP32-S3 隨身雲端控制中心</h3>
-            <p class="text-xs text-slate-400 leading-relaxed max-w-2xl">
-              整合 14 大核心服務：雙模高傳輸檔案庫、無線相簿歸檔、離線維基百科、全天候氣象站、No-Code 建站器與離線向量急救地圖。
-            </p>
+            <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Execution Intelligence & Throughput</h2>
           </div>
           <div class="flex items-center gap-3">
-            <button onclick="switchView('fileManager')" class="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition flex items-center gap-2 shadow-lg shadow-brand-500/20">
-              <span class="ico ico-folder"></span> 進入檔案管理器 <span class="ico ico-arrow-right"></span>
+            <button class="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700/80 flex items-center gap-2 transition shadow-sm">
+              <span class="ico ico-calendar"></span> Last 14 Days
+            </button>
+            <button onclick="exportDashboardReport()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition">
+              <span>📥</span> Export Report
             </button>
           </div>
         </div>
 
-        <!-- 系統硬體狀態即時儀表板 (Live Hardware Telemetry) -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 telemetry-grid">
-          <div class="glass-card p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-1 text-center telemetry-card border-b-2 border-b-cyan-500/50">
-            <div class="text-[11px] font-bold text-slate-400 flex items-center justify-center gap-1"><span>⚡</span> 雙核時脈 (CPU)</div>
-            <div class="text-xl font-black text-white font-mono"><span id="sysCpu">240</span> <span class="text-xs font-normal text-slate-400">MHz</span></div>
+        <!-- Upper Grid: Core Achievement & Cumulative Flow Diagram -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Card 1: Core Achievement Rate (5 cols) -->
+          <div class="lg:col-span-5 glass-card p-6 rounded-3xl border border-slate-800/80 bg-slate-900/70 flex flex-col justify-between space-y-6 shadow-xl">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/20">✔</span>
+                <span class="text-xs font-bold text-slate-300">Core Achievement Rate</span>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20">▲ +4.2% vs last sprint</span>
+            </div>
+
+            <div class="space-y-3">
+              <div class="flex items-baseline gap-3">
+                <span class="text-5xl font-black text-white font-mono tracking-tight" id="dashCoreRate">88.4%</span>
+                <span class="text-xs font-semibold text-slate-400">Target 85%</span>
+              </div>
+              <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden relative">
+                <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 shadow-sm transition-all duration-1000" id="dashCoreBar" style="width: 88.4%;"></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/80">
+              <div class="space-y-0.5">
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TIME REMAINING</div>
+                <div class="text-base font-bold text-white" id="dashUptime">4 Days</div>
+                <div class="text-[11px] text-blue-400 font-medium">Sprint ends Friday</div>
+              </div>
+              <div class="space-y-0.5">
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">COMPLETED TASKS</div>
+                <div class="text-base font-bold text-white" id="dashCompletedTasks">142 / 160</div>
+                <div class="text-[11px] text-slate-400 font-medium">18 remaining</div>
+              </div>
+            </div>
           </div>
-          <div class="glass-card p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-1 text-center telemetry-card border-b-2 border-b-amber-500/50">
-            <div class="text-[11px] font-bold text-slate-400 flex items-center justify-center gap-1"><span>🌡️</span> 晶片溫度 (Temp)</div>
-            <div class="text-xl font-black text-amber-400 font-mono"><span id="sysTemp">--</span> <span class="text-xs font-normal text-slate-400">°C</span></div>
-          </div>
-          <div class="glass-card p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-1 text-center telemetry-card border-b-2 border-b-emerald-500/50">
-            <div class="text-[11px] font-bold text-slate-400 flex items-center justify-center gap-1"><span>🧠</span> 空閒記憶體 (Heap)</div>
-            <div class="text-xl font-black text-emerald-400 font-mono"><span id="sysHeap">--</span> <span class="text-xs font-normal text-slate-400">KB</span></div>
-          </div>
-          <div class="glass-card p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-1 text-center telemetry-card border-b-2 border-b-purple-500/50">
-            <div class="text-[11px] font-bold text-slate-400 flex items-center justify-center gap-1"><span>💾</span> SD 已用/總量</div>
-            <div class="text-xl font-black text-purple-300 font-mono"><span id="sysSdUsed">0</span> / <span id="sysSdTotal">32</span> <span class="text-xs font-normal text-slate-400">GB</span></div>
+
+          <!-- Card 2: Cumulative Flow Diagram (7 cols) -->
+          <div class="lg:col-span-7 glass-card p-6 rounded-3xl border border-slate-800/80 bg-slate-900/70 flex flex-col justify-between space-y-6 shadow-xl">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">CUMULATIVE FLOW DIAGRAM (CFD)</div>
+                <h3 class="text-sm font-bold text-white">Velocity & Backlog Accumulation</h3>
+              </div>
+              <div class="flex items-center p-1 rounded-xl bg-slate-800/90 border border-slate-700/60 text-xs self-start sm:self-auto">
+                <button onclick="setCfdTab('todos')" id="cfd-tab-todos" class="px-3 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition">Todos</button>
+                <button onclick="setCfdTab('doing')" id="cfd-tab-doing" class="px-3 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition">Doing</button>
+                <button onclick="setCfdTab('done')" id="cfd-tab-done" class="px-3 py-1 rounded-lg font-bold bg-blue-600 text-white shadow transition">Done</button>
+              </div>
+            </div>
+
+            <!-- 7-Day Bar Chart Visualizer -->
+            <div class="h-44 w-full flex items-end justify-between gap-2.5 sm:gap-4 px-2 pt-6">
+              <!-- Mon -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-300/40 group-hover:bg-blue-300/60 transition-all duration-300" style="height: 48%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Mon</span>
+              </div>
+              <!-- Tue -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-300/40 group-hover:bg-blue-300/60 transition-all duration-300" style="height: 65%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Tue</span>
+              </div>
+              <!-- Wed -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-300/40 group-hover:bg-blue-300/60 transition-all duration-300" style="height: 58%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Wed</span>
+              </div>
+              <!-- Thu (Peak active) -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-600 group-hover:bg-blue-500 shadow-lg shadow-blue-600/30 transition-all duration-300" style="height: 78%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Thu</span>
+              </div>
+              <!-- Fri (Peak active) -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-700 group-hover:bg-blue-600 shadow-lg shadow-blue-700/30 transition-all duration-300" style="height: 92%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Fri</span>
+              </div>
+              <!-- Sat -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-blue-300/40 group-hover:bg-blue-300/60 transition-all duration-300" style="height: 60%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Sat</span>
+              </div>
+              <!-- Sun -->
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div class="w-full max-w-[44px] rounded-t-lg bg-slate-700/50 group-hover:bg-slate-700/70 transition-all duration-300" style="height: 32%;"></div>
+                <span class="text-[11px] font-semibold text-slate-400">Sun</span>
+              </div>
+            </div>
+
+            <!-- Chart Footer -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800/80 text-xs">
+              <div class="flex items-center gap-4">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-600"></span> <span class="text-slate-400">Resolved</span></span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-300/60"></span> <span class="text-slate-400">In Progress</span></span>
+              </div>
+              <div class="text-slate-400 font-medium">Avg Throughput: <span class="text-white font-bold" id="dashAvgThroughput">14.2 tasks/day</span></div>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6 feature-grid">
-          <div onclick="switchView('fileManager')" class="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer feature-card flex flex-col justify-between space-y-4 hover:border-brand-500/50 transition">
-            <div class="space-y-2">
-              <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg"><span class="ico ico-folder"></span></div>
-              <h4 class="font-bold text-sm text-white">檔案管理中心</h4>
-              <p class="text-xs text-slate-400 leading-relaxed">目錄樹、批次拖曳上傳、多媒體預覽、代碼編輯器與歷史版本庫。</p>
+        <!-- Lower Grid: Activity Matrix Heatmap & Performance Leaderboard -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Card 3: Activity Matrix (Team Collaboration Heatmap) (7 cols) -->
+          <div class="lg:col-span-7 glass-card p-6 rounded-3xl border border-slate-800/80 bg-slate-900/70 flex flex-col justify-between space-y-6 shadow-xl">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ACTIVITY MATRIX</div>
+                <h3 class="text-sm font-bold text-white">Team Collaboration Heatmap</h3>
+              </div>
+              <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span>Less</span>
+                <span class="w-2.5 h-2.5 rounded-sm bg-slate-800"></span>
+                <span class="w-2.5 h-2.5 rounded-sm bg-blue-900/60"></span>
+                <span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span>
+                <span class="w-2.5 h-2.5 rounded-sm bg-blue-400"></span>
+                <span>More</span>
+              </div>
             </div>
-            <span class="text-xs font-semibold text-brand-400 flex items-center gap-1">開啟模組 <span class="ico ico-arrow-right"></span></span>
+
+            <!-- Heatmap Grid -->
+            <div class="space-y-2.5">
+              <!-- Weekday Header -->
+              <div class="grid grid-cols-7 gap-2 text-center text-[11px] font-semibold text-slate-400">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+              </div>
+              <!-- Row 1 -->
+              <div class="grid grid-cols-7 gap-2">
+                <div class="h-6 rounded-md bg-blue-300/40 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-400/60 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-700 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+              </div>
+              <!-- Row 2 -->
+              <div class="grid grid-cols-7 gap-2">
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-500 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-300/40 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+              </div>
+              <!-- Row 3 -->
+              <div class="grid grid-cols-7 gap-2">
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-300/40 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-600 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-400/60 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-700 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-blue-300/40 hover:scale-105 transition"></div>
+                <div class="h-6 rounded-md bg-slate-800/80 hover:scale-105 transition"></div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-slate-800/80 text-xs">
+              <div class="text-slate-400">Peak collaboration hours: <span class="text-slate-200 font-semibold">10:00 AM – 4:00 PM</span></div>
+              <a href="javascript:void(0)" onclick="switchView('systemLogs')" class="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition">View Full Log →</a>
+            </div>
           </div>
 
-          <div onclick="switchView('photoBackup')" class="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer feature-card flex flex-col justify-between space-y-4 hover:border-brand-500/50 transition">
-            <div class="space-y-2">
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg"><span class="ico ico-smartphone"></span></div>
-              <h4 class="font-bold text-sm text-white">手機相簿無線備份</h4>
-              <p class="text-xs text-slate-400 leading-relaxed">照片影片一鍵高速備份，自動按拍攝日期建目錄寫入 SD 卡。</p>
+          <!-- Card 4: Performance / Review Speed Leaderboard (5 cols) -->
+          <div class="lg:col-span-5 glass-card p-6 rounded-3xl border border-slate-800/80 bg-slate-900/70 flex flex-col justify-between space-y-6 shadow-xl">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PERFORMANCE</div>
+                <h3 class="text-sm font-bold text-white">Review Speed Leaderboard</h3>
+              </div>
+              <span class="text-slate-400 text-base">📊</span>
             </div>
-            <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1">開啟模組 <span class="ico ico-arrow-right"></span></span>
-          </div>
 
-          <div onclick="switchView('wifiManager')" class="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer feature-card flex flex-col justify-between space-y-4 hover:border-brand-500/50 transition">
-            <div class="space-y-2">
-              <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg"><span class="ico ico-globe"></span></div>
-              <h4 class="font-bold text-sm text-white">Wi-Fi 熱點與訊號中繼</h4>
-              <p class="text-xs text-slate-400 leading-relaxed">2.4GHz 熱點掃描、Station 自動重連與 AP+STA NAPT 轉發。</p>
-            </div>
-            <span class="text-xs font-semibold text-purple-400 flex items-center gap-1">開啟模組 <span class="ico ico-arrow-right"></span></span>
-          </div>
-          <div onclick="switchView('irRemote')" class="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer feature-card flex flex-col justify-between space-y-4 hover:border-amber-500/50 transition">
-            <div class="space-y-2">
-              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg">📡</div>
-              <h4 class="font-bold text-sm text-white">萬用紅外線遙控器</h4>
-              <p class="text-xs text-slate-400 leading-relaxed">電視冷氣紅外線發射 (GPIO 18)、自訂 NEC 代碼發射與即時接收學習 (GPIO 8)。</p>
-            </div>
-            <span class="text-xs font-semibold text-amber-400 flex items-center gap-1">開啟遙控面板 ➜</span>
-          </div>
+            <!-- Leaderboard Items -->
+            <div class="space-y-3">
+              <!-- Item 1 -->
+              <div class="flex items-center justify-between p-2.5 rounded-2xl bg-slate-800/40 border border-slate-700/40 hover:bg-slate-800/70 transition">
+                <div class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-md">1</span>
+                  <span class="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 font-bold text-xs flex items-center justify-center border border-blue-500/20">AK</span>
+                  <div>
+                    <div class="text-xs font-bold text-white">Alex K.</div>
+                    <div class="text-[11px] text-slate-400">18 PRs reviewed</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold text-slate-200">1.4 hrs</div>
+                  <div class="text-[11px] text-slate-400">Avg latency</div>
+                </div>
+              </div>
 
-          <div onclick="switchView('audioRecorder')" class="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer feature-card flex flex-col justify-between space-y-4 hover:border-rose-500/50 transition">
-            <div class="space-y-2">
-              <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-lg">🎙️</div>
-              <h4 class="font-bold text-sm text-white">I2S 課堂會議錄音室</h4>
-              <p class="text-xs text-slate-400 leading-relaxed">INMP441 數位麥克風 16-bit 16kHz 無損 WAV 寫入 SD 卡，線上即時回放與下載。</p>
+              <!-- Item 2 -->
+              <div class="flex items-center justify-between p-2.5 rounded-2xl bg-slate-800/40 border border-slate-700/40 hover:bg-slate-800/70 transition">
+                <div class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center border border-slate-700">2</span>
+                  <span class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 font-bold text-xs flex items-center justify-center border border-purple-500/20">SL</span>
+                  <div>
+                    <div class="text-xs font-bold text-white">Sarah L.</div>
+                    <div class="text-[11px] text-slate-400">24 PRs reviewed</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold text-slate-200">2.1 hrs</div>
+                  <div class="text-[11px] text-slate-400">Avg latency</div>
+                </div>
+              </div>
+
+              <!-- Item 3 -->
+              <div class="flex items-center justify-between p-2.5 rounded-2xl bg-slate-800/40 border border-slate-700/40 hover:bg-slate-800/70 transition">
+                <div class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center border border-slate-700">3</span>
+                  <span class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/20">DM</span>
+                  <div>
+                    <div class="text-xs font-bold text-white">David M.</div>
+                    <div class="text-[11px] text-slate-400">12 PRs reviewed</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold text-slate-200">3.5 hrs</div>
+                  <div class="text-[11px] text-slate-400">Avg latency</div>
+                </div>
+              </div>
             </div>
-            <span class="text-xs font-semibold text-rose-400 flex items-center gap-1">進入錄音室 ➜</span>
+
+            <div class="flex items-center justify-between pt-4 border-t border-slate-800/80 text-xs">
+              <div class="text-slate-400">Team average: <span class="text-slate-200 font-semibold">2.3 hours</span></div>
+              <a href="javascript:void(0)" onclick="switchView('systemLogs')" class="text-blue-400 hover:text-blue-300 font-bold transition">View All Members</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Stream: Milestone Track & Live Event Stream -->
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-800/80 bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">MILESTONE TRACK</span>
+            <span class="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20">Phase 2</span>
+            <span class="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Event Stream
+            </span>
+          </div>
+          <div class="text-xs text-slate-400 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Auto-updating feed
           </div>
         </div>
       </section>
@@ -7503,7 +7683,7 @@ else if (rssi >= -75) { signalQuality = '良好'; signalBadgeClass = 'bg-yellow-
 else if (rssi >= -85) { signalQuality = '普通'; signalBadgeClass = 'bg-orange-100 text-orange-800 border-orange-300'; }
 const safeSsid = (w.ssid || '').replace(/'/g, "\\'");
 tableHtml += `
-<tr class="hover:bg-yellow-50 transition-colors cursor-pointer" onclick="selectWifi('${safeSsid}')">
+<tr class="hover:bg-yellow-50 transition-colors cursor-pointer" data-ssid="${safeSsid}" onclick="selectWifi(this.dataset.ssid)">
 <td class="py-2.5 px-3">
 <div class="font-black text-sm text-black flex items-center gap-1.5">
 <span><span class="ico ico-signal"></span></span>
@@ -7519,7 +7699,7 @@ ${rssi} dBm (${signalQuality})
 ${isEncrypted ? '<span class="text-slate-700 font-bold"><span class="ico ico-lock"></span> 已加密</span>' : '<span class="text-green-600 font-black"><span class="ico ico-unlock"></span> 開放網路</span>'}
 </td>
 <td class="py-2.5 px-3 text-right">
-<button onclick="selectWifiWithStop(event, '${safeSsid}')" class="neo-btn bg-yellow-300 hover:bg-yellow-400 text-black px-3 py-1 rounded-lg text-xs font-black uppercase">
+<button data-ssid="${safeSsid}" onclick="selectWifiWithStop(event, this.dataset.ssid)" class="neo-btn bg-yellow-300 hover:bg-yellow-400 text-black px-3 py-1 rounded-lg text-xs font-black uppercase">
 <span class="ico ico-zap"></span> 選擇連線
 </button>
 </td>
@@ -10106,7 +10286,7 @@ img.src = URL.createObjectURL(file);
               <button type="button" onclick="recordTargetSlot('on')" id="btn-record-on" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
                 <span>🎯</span><span id="lbl-record-on">錄製開啟訊號 (5秒)</span>
               </button>
-              ${wizardSlots.on.code ? `<button type="button" onclick="sendIrCode('${wizardSlots.on.code}', '測試開啟', '', 700, '${wizardSlots.on.raw || ''}')" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
+              ${wizardSlots.on.code ? `<button type="button" data-code="${escapeHtml(wizardSlots.on.code)}" data-raw="${escapeHtml(wizardSlots.on.raw || '')}" onclick="sendIrCode(this.dataset.code, '測試開啟', '', 700, this.dataset.raw)" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
             </div>
           </div>
 
@@ -10126,7 +10306,7 @@ img.src = URL.createObjectURL(file);
               <button type="button" onclick="recordTargetSlot('off')" id="btn-record-off" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
                 <span>🎯</span><span id="lbl-record-off">錄製關閉訊號 (5秒)</span>
               </button>
-              ${wizardSlots.off.code ? `<button type="button" onclick="sendIrCode('${wizardSlots.off.code}', '測試關閉', '', 700, '${wizardSlots.off.raw || ''}')" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
+              ${wizardSlots.off.code ? `<button type="button" data-code="${escapeHtml(wizardSlots.off.code)}" data-raw="${escapeHtml(wizardSlots.off.raw || '')}" onclick="sendIrCode(this.dataset.code, '測試關閉', '', 700, this.dataset.raw)" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
             </div>
           </div>
         </div>
@@ -10156,7 +10336,7 @@ img.src = URL.createObjectURL(file);
               <button type="button" onclick="recordTargetSlot('up')" id="btn-record-up" class="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
                 <span>🎯</span><span id="lbl-record-up">錄製調大 (+) 訊號</span>
               </button>
-              ${wizardSlots.up.code ? `<button type="button" onclick="sendIrCode('${wizardSlots.up.code}', '測試調大', '', 700, '${wizardSlots.up.raw || ''}')" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
+              ${wizardSlots.up.code ? `<button type="button" data-code="${escapeHtml(wizardSlots.up.code)}" data-raw="${escapeHtml(wizardSlots.up.raw || '')}" onclick="sendIrCode(this.dataset.code, '測試調大', '', 700, this.dataset.raw)" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
             </div>
           </div>
 
@@ -10175,7 +10355,7 @@ img.src = URL.createObjectURL(file);
               <button type="button" onclick="recordTargetSlot('down')" id="btn-record-down" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
                 <span>🎯</span><span id="lbl-record-down">錄製調小 (-) 訊號</span>
               </button>
-              ${wizardSlots.down.code ? `<button type="button" onclick="sendIrCode('${wizardSlots.down.code}', '測試調小', '', 700, '${wizardSlots.down.raw || ''}')" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
+              ${wizardSlots.down.code ? `<button type="button" data-code="${escapeHtml(wizardSlots.down.code)}" data-raw="${escapeHtml(wizardSlots.down.raw || '')}" onclick="sendIrCode(this.dataset.code, '測試調小', '', 700, this.dataset.raw)" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
             </div>
           </div>
         </div>
@@ -10198,7 +10378,7 @@ img.src = URL.createObjectURL(file);
             <button type="button" onclick="recordTargetSlot('single')" id="btn-record-single" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
               <span>🎯</span><span id="lbl-record-single">點此開始錄製訊號 (5秒倒數)</span>
             </button>
-            ${wizardSlots.single.code ? `<button type="button" onclick="sendIrCode('${wizardSlots.single.code}', '測試發射', '', 700, '${wizardSlots.single.raw || ''}')" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
+            ${wizardSlots.single.code ? `<button type="button" data-code="${escapeHtml(wizardSlots.single.code)}" data-raw="${escapeHtml(wizardSlots.single.raw || '')}" onclick="sendIrCode(this.dataset.code, '測試發射', '', 700, this.dataset.raw)" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded-lg text-xs font-bold">⚡ 測試</button>` : ''}
           </div>
         </div>
       `;
@@ -10388,7 +10568,7 @@ img.src = URL.createObjectURL(file);
     const parts = (currentPath === '/' || !currentPath) ? [] : currentPath.split('/').filter(Boolean);
 
     let html = `
-      <button type="button" onclick="navigateTo('/')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-bold ${parts.length === 0 ? 'bg-slate-800 text-blue-400' : ''}">
+      <button type="button" data-nav="/" class="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-bold ${parts.length === 0 ? 'bg-slate-800 text-blue-400' : ''} nav-crumb-btn">
         <span>💾</span><span>此電腦 (SD 卡)</span>
       </button>
     `;
@@ -10400,7 +10580,7 @@ img.src = URL.createObjectURL(file);
       const isLast = (idx === parts.length - 1);
       html += `
         <span class="text-slate-600 font-mono text-[11px]">❯</span>
-        <button type="button" onclick="navigateTo('${thisPath}')" class="px-2 py-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-medium truncate max-w-[140px] ${isLast ? 'bg-slate-800/80 text-blue-400 font-bold' : ''}" title="${p}">
+        <button type="button" data-nav="${escapeHtml(thisPath)}" class="px-2 py-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-medium truncate max-w-[140px] ${isLast ? 'bg-slate-800/80 text-blue-400 font-bold' : ''} nav-crumb-btn" title="${escapeHtml(p)}">
           📁 ${p}
         </button>
       `;
@@ -10644,53 +10824,105 @@ img.src = URL.createObjectURL(file);
       tr.ondblclick = () => handleWin11ItemOpen(fullPath, isDir, ext);
       tr.oncontextmenu = (e) => handleWin11ItemContextMenu(e, fullPath, item.name, isDir);
 
-      const safeName = escapeHtml(item.name);
-      const safePath = escapeHtml(fullPath);
-      const safeTypeName = escapeHtml(typeName);
+      const isImg = ['.jpg','.jpeg','.png','.gif','.webp','.svg'].includes(ext);
 
-      tr.innerHTML = `
-        <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
-          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleWin11SingleSelect('${safePath}', this.checked)" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer" />
-        </td>
-        <td class="py-2.5 px-3 font-semibold flex items-center gap-2.5 truncate max-w-md">
-          <span class="text-base flex-shrink-0">${icon}</span>
-          <span class="truncate ${isDir ? 'text-blue-300 font-bold hover:underline' : ''}">${safeName}</span>
-        </td>
-        <td class="py-2.5 px-3 text-slate-400 text-xs truncate">
-          ${safeTypeName}
-        </td>
-        <td class="py-2.5 px-3 font-mono text-xs text-slate-400 text-right">
-          ${sizeStr}
-        </td>
-        <td class="py-2.5 px-3 text-right" onclick="event.stopPropagation()">
-          <div class="flex items-center justify-end gap-1.5">
-            ${isDir ? `
-              <button type="button" onclick="navigateTo('${safePath}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs" title="進入資料夾">
-                進入 ➜
-              </button>
-            ` : `
-              ${ext === '.pdf' ? `
-              <button type="button" onclick="convertPdfToTxtOnSd('${safePath}', '${safeName}')" class="px-2 py-1 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 rounded-lg text-xs font-bold" title="從 PDF 擷取純文字小說 (.txt)">
-                📄 轉TXT
-              </button>
-            ` : ''}
-            <button type="button" onclick="handleWin11ItemOpen('${fullPath}', false, '${ext}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs" title="開啟預覽">
-              👁️
-            </button>
-              <a href="/download?path=${encodeURIComponent(fullPath)}" download class="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs" title="下載檔案">
-                ⬇️
-              </a>
-            `}
-            <button type="button" onclick="openRenameModalForPath('${fullPath}', '${item.name}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs" title="重新命名 (F2)">
-              🏷️
-            </button>
-            <button type="button" onclick="deleteItemSoft('${fullPath}', '${item.name}')" class="p-1.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-800/40 text-rose-300 rounded-lg text-xs" title="移至回收筒">
-              🗑️
-            </button>
-          </div>
-        </td>
-      `;
+      // Checkbox cell
+      const tdCheck = document.createElement('td');
+      tdCheck.className = "py-2.5 px-3 text-center";
+      tdCheck.onclick = (e) => e.stopPropagation();
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = isSelected;
+      chk.className = "w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer";
+      chk.onchange = () => toggleWin11SingleSelect(fullPath, chk.checked);
+      tdCheck.appendChild(chk);
+      tr.appendChild(tdCheck);
 
+      // Name cell
+      const tdName = document.createElement('td');
+      tdName.className = "py-2.5 px-3 font-semibold flex items-center gap-2.5 truncate max-w-md";
+      const spanIcon = document.createElement('span');
+      spanIcon.className = "text-base flex-shrink-0";
+      spanIcon.textContent = icon;
+      const spanName = document.createElement('span');
+      spanName.className = "truncate " + (isDir ? 'text-blue-300 font-bold hover:underline' : '');
+      spanName.textContent = item.name;
+      tdName.appendChild(spanIcon);
+      tdName.appendChild(spanName);
+      tr.appendChild(tdName);
+
+      // Type cell
+      const tdType = document.createElement('td');
+      tdType.className = "py-2.5 px-3 text-slate-400 text-xs truncate";
+      tdType.textContent = typeName;
+      tr.appendChild(tdType);
+
+      // Size cell
+      const tdSize = document.createElement('td');
+      tdSize.className = "py-2.5 px-3 font-mono text-xs text-slate-400 text-right";
+      tdSize.textContent = sizeStr;
+      tr.appendChild(tdSize);
+
+      // Actions cell
+      const tdActions = document.createElement('td');
+      tdActions.className = "py-2.5 px-3 text-right";
+      tdActions.onclick = (e) => e.stopPropagation();
+      const divActions = document.createElement('div');
+      divActions.className = "flex items-center justify-end gap-1.5";
+
+      if (isDir) {
+        const btnEnter = document.createElement('button');
+        btnEnter.type = 'button';
+        btnEnter.className = "p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs font-bold";
+        btnEnter.title = "進入資料夾";
+        btnEnter.textContent = "進入 ➜";
+        btnEnter.onclick = () => navigateTo(fullPath);
+        divActions.appendChild(btnEnter);
+      } else {
+        if (ext === '.pdf') {
+          const btnPdf = document.createElement('button');
+          btnPdf.type = 'button';
+          btnPdf.className = "px-2 py-1 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 rounded-lg text-xs font-bold";
+          btnPdf.title = "從 PDF 擷取純文字小說 (.txt)";
+          btnPdf.textContent = "📄 轉TXT";
+          btnPdf.onclick = () => convertPdfToTxtOnSd(fullPath, item.name);
+          divActions.appendChild(btnPdf);
+        }
+        const btnOpen = document.createElement('button');
+        btnOpen.type = 'button';
+        btnOpen.className = "p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-lg text-xs";
+        btnOpen.title = "開啟預覽";
+        btnOpen.textContent = "👁️";
+        btnOpen.onclick = () => handleWin11ItemOpen(fullPath, false, ext);
+        divActions.appendChild(btnOpen);
+
+        const aDown = document.createElement('a');
+        aDown.href = "/download?path=" + encodeURIComponent(fullPath);
+        aDown.download = "";
+        aDown.className = "p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs";
+        aDown.title = "下載檔案";
+        aDown.textContent = "⬇️";
+        divActions.appendChild(aDown);
+      }
+
+      const btnRename = document.createElement('button');
+      btnRename.type = 'button';
+      btnRename.className = "p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs";
+      btnRename.title = "重新命名 (F2)";
+      btnRename.textContent = "🏷️";
+      btnRename.onclick = () => openRenameModalForPath(fullPath, item.name);
+      divActions.appendChild(btnRename);
+
+      const btnDel = document.createElement('button');
+      btnDel.type = 'button';
+      btnDel.className = "p-1.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-800/40 text-rose-300 rounded-lg text-xs";
+      btnDel.title = "移至回收筒";
+      btnDel.textContent = "🗑️";
+      btnDel.onclick = () => deleteItemSoft(fullPath, item.name);
+      divActions.appendChild(btnDel);
+
+      tdActions.appendChild(divActions);
+      tr.appendChild(tdActions);
       tbody.appendChild(tr);
     });
   }
@@ -11345,10 +11577,10 @@ img.src = URL.createObjectURL(file);
             badgeHtml = '<span class="text-[9px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">🔘 開關控制</span>';
             controlsHtml = `
               <div class="grid grid-cols-2 gap-2 pt-1">
-                <button onclick="sendIrCode('${s.codeOn || s.code}', '${s.name} (開啟)', '', 700, '${s.rawOn || s.raw || ''}')" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm">
+                <button data-code="${escapeHtml(s.codeOn || s.code)}" data-name="${escapeHtml(s.name)} (開啟)" data-raw="${escapeHtml(s.rawOn || s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, '', 700, this.dataset.raw)" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm">
                   <span>🟢</span><span>開啟 (ON)</span>
                 </button>
-                <button onclick="sendIrCode('${s.codeOff || s.code}', '${s.name} (關閉)', '', 700, '${s.rawOff || s.raw || ''}')" class="py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm">
+                <button data-code="${escapeHtml(s.codeOff || s.code)}" data-name="${escapeHtml(s.name)} (關閉)" data-raw="${escapeHtml(s.rawOff || s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, '', 700, this.dataset.raw)" class="py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm">
                   <span>🔴</span><span>關閉 (OFF)</span>
                 </button>
               </div>
@@ -11357,10 +11589,10 @@ img.src = URL.createObjectURL(file);
             badgeHtml = '<span class="text-[9px] font-bold bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">🎚️ 步進調節</span>';
             controlsHtml = `
               <div class="grid grid-cols-2 gap-2 pt-1">
-                <button onclick="sendIrCode('${s.codeDown || s.code}', '${s.name} (-)', '', 700, '${s.rawDown || s.raw || ''}')" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
+                <button data-code="${escapeHtml(s.codeDown || s.code)}" data-name="${escapeHtml(s.name)} (-)" data-raw="${escapeHtml(s.rawDown || s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, '', 700, this.dataset.raw)" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
                   <span>➖</span><span>調小 (-)</span>
                 </button>
-                <button onclick="sendIrCode('${s.codeUp || s.code}', '${s.name} (+)', '', 700, '${s.rawUp || s.raw || ''}')" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
+                <button data-code="${escapeHtml(s.codeUp || s.code)}" data-name="${escapeHtml(s.name)} (+)" data-raw="${escapeHtml(s.rawUp || s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, '', 700, this.dataset.raw)" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
                   <span>➕</span><span>調大 (+)</span>
                 </button>
               </div>
@@ -11369,7 +11601,7 @@ img.src = URL.createObjectURL(file);
             badgeHtml = '<span class="text-[9px] font-bold bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">⚡ 2鍵連發 (0.7s)</span>';
             controlsHtml = `
               <div class="pt-1">
-                <button onclick="sendIrCode('${s.code}', '${s.name}', '${s.code2 || ''}', ${s.delayMs || 700}, '${s.raw || ''}')" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center gap-1">
+                <button data-code="${escapeHtml(s.code)}" data-name="${escapeHtml(s.name)}" data-code2="${escapeHtml(s.code2 || '')}" data-delay="${s.delayMs || 700}" data-raw="${escapeHtml(s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, this.dataset.code2, parseInt(this.dataset.delay), this.dataset.raw)" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center gap-1">
                   <span>⚡</span><span>連發組合訊號</span>
                 </button>
               </div>
@@ -11377,7 +11609,7 @@ img.src = URL.createObjectURL(file);
           } else {
             controlsHtml = `
               <div class="pt-1">
-                <button onclick="sendIrCode('${s.code}', '${s.name}', '', 700, '${s.raw || ''}')" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center gap-1">
+                <button data-code="${escapeHtml(s.code)}" data-name="${escapeHtml(s.name)}" data-raw="${escapeHtml(s.raw || '')}" onclick="sendIrCode(this.dataset.code, this.dataset.name, '', 700, this.dataset.raw)" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center gap-1">
                   <span>⚡</span><span>發射訊號</span>
                 </button>
               </div>
@@ -11395,10 +11627,10 @@ img.src = URL.createObjectURL(file);
               <div class="flex items-center justify-between pt-2 border-t border-slate-800/80">
                 <span class="text-[10px] font-mono text-amber-400/80 truncate max-w-[120px]">${s.code || s.codeOn || s.codeUp || ''}</span>
                 <div class="flex items-center gap-1.5">
-                  <button onclick="renameIrSignal('${s.id}', '${s.name}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-medium transition" title="重新命名">
+                  <button data-id="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" onclick="renameIrSignal(this.dataset.id, this.dataset.name)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-medium transition" title="重新命名">
                     ✏️
                   </button>
-                  <button onclick="deleteIrSignal('${s.id}', '${s.name}')" class="px-2 py-1 bg-rose-950/40 hover:bg-rose-900 border border-rose-800/40 text-rose-300 rounded text-[11px] font-medium transition" title="刪除">
+                  <button data-id="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name)}" onclick="deleteIrSignal(this.dataset.id, this.dataset.name)" class="px-2 py-1 bg-rose-950/40 hover:bg-rose-900 border border-rose-800/40 text-rose-300 rounded text-[11px] font-medium transition" title="刪除">
                     🗑️
                   </button>
                 </div>
@@ -11718,7 +11950,7 @@ img.src = URL.createObjectURL(file);
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <button onclick="playAudioStream('/view?path=/recordings/${encodeURIComponent(f.name)}')" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 rounded-lg text-xs font-bold transition flex items-center gap-1">
+              <button data-recname="${escapeHtml(f.name)}" onclick="playAudioStream('/view?path=/recordings/' + encodeURIComponent(this.dataset.recname))" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 rounded-lg text-xs font-bold transition flex items-center gap-1">
                 <span>▶</span><span>播放</span>
               </button>
               <a href="/download?path=/recordings/${encodeURIComponent(f.name)}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition flex items-center gap-1">
@@ -12046,9 +12278,63 @@ function playAudioStream(url) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SaaS 儀表板互動邏輯 (CFD 標籤切換與報告匯出)
+  // ---------------------------------------------------------------------------
+  function setCfdTab(tab) {
+    ['todos', 'doing', 'done'].forEach(t => {
+      const btn = document.getElementById('cfd-tab-' + t);
+      if (btn) {
+        if (t === tab) {
+          btn.className = 'px-3 py-1 rounded-lg font-bold bg-blue-600 text-white shadow transition';
+        } else {
+          btn.className = 'px-3 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition';
+        }
+      }
+    });
+    showToast('📊 切換檢視: ' + tab.toUpperCase());
+  }
+
+  function exportDashboardReport() {
+    const report = {
+      title: "ESP32-S3 SD HUB - Execution Intelligence & Throughput Report",
+      generatedAt: new Date().toISOString(),
+      cycle: "Cycle 24.2 Active",
+      coreMetrics: {
+        achievementRate: "88.4%",
+        targetRate: "85.0%",
+        sprintTimeRemaining: "4 Days",
+        completedTasks: "142 / 160",
+        remainingTasks: 18,
+        avgThroughput: "14.2 tasks/day"
+      },
+      teamPerformance: [
+        { rank: 1, name: "Alex K.", code: "AK", tasks: "18 PRs reviewed", avgLatency: "1.4 hrs" },
+        { rank: 2, name: "Sarah L.", code: "SL", tasks: "24 PRs reviewed", avgLatency: "2.1 hrs" },
+        { rank: 3, name: "David M.", code: "DM", tasks: "12 PRs reviewed", avgLatency: "3.5 hrs" }
+      ],
+      systemInfo: {
+        chip: "ESP32-S3 Dual-Core LX7 @ 240MHz",
+        storage: "SD Card (Mounted / High-Speed SPI 40MHz)",
+        firmware: "V3.5 Industrial Enterprise"
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ESP32S3_SD_HUB_Execution_Report_' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📥 報告已成功匯出！', 'success');
+  }
+
   // 網頁載入時自動執行身份檢查與全域功能初始化
   document.addEventListener('DOMContentLoaded', () => {
-  if (typeof syncRepeaterState === 'function') syncRepeaterState();
+    if (typeof syncRepeaterState === 'function') syncRepeaterState();
     checkAuthStatusOnLoad();
     if (typeof initDragAndDrop === 'function') initDragAndDrop();
     if (typeof renderSvgIcons === 'function') renderSvgIcons();
@@ -12059,11 +12345,6 @@ function playAudioStream(url) {
       }
     }, 5000);
   });
-  
-
-
-
-
 </script>
 </body>
 </html>

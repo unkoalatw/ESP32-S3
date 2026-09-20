@@ -122,6 +122,18 @@ inline void sendNecIrCode(uint32_t code) {
   logf("📡 [IR-TX] 成功發射 NEC 32-bit 代碼: 0x%08X\n", (unsigned)code);
 }
 
+inline void sendPresetIrCode(int presetIdx) {
+  if (presetIdx < 0 || presetIdx >= 6) return;
+  const IrPresetButton &btn = g_irPresets[presetIdx];
+  if (btn.code != 0) {
+    sendNecIrCode(btn.code);
+    if (btn.code2 != 0) {
+      delay(btn.delayMs > 0 ? btn.delayMs : 100);
+      sendNecIrCode(btn.code2);
+    }
+  }
+}
+
 // 發送 Panasonic 國際牌冷氣 27 位元組 (216 位元) 雙幀標準協定
 inline void sendPanasonicAcBytes(const uint8_t *bytes, uint8_t len) {
   if (len < 27) return;
@@ -508,7 +520,7 @@ inline void loadIrPresetsFromSD() {
 }
 
 inline void saveIrPresetsToSD() {
-  if (SD.cardType() == CARD_NONE) return;
+  if (SD.cardType() == CARD_NONE || hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) return;
   ensureDirectoryExists("/config");
   SpiLock lock;
   File f = SD.open("/config/ir_presets.json", FILE_WRITE);

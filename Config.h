@@ -98,10 +98,19 @@ inline bool readSysBit(uint8_t bitPos) { return (systemFlags.load(std::memory_or
 inline void setSysBit(uint8_t bitPos) { systemFlags.fetch_or(1UL << bitPos, std::memory_order_relaxed); }
 inline void clearSysBit(uint8_t bitPos) { systemFlags.fetch_and(~(1UL << bitPos), std::memory_order_relaxed); }
 
+// 64-bit 單調遞增系統秒數 (避免 millis() 32-bit 在 49.7 天發生 wrap 溢位)
+inline uint64_t monotonicSeconds() {
+  return static_cast<uint64_t>(esp_timer_get_time()) / 1000000ULL;
+}
+
+inline bool isStorageLocked() {
+  return hasFlag(SysFlag::USB_EXCLUSIVE_LOCK);
+}
+
 // ---------------------------------------------------------------------------
 // 出廠預設值 (Factory Defaults - 安全通用預設，首次啟動請至後台修改)
 // ---------------------------------------------------------------------------
-constexpr char FACTORY_WIFI_SSID[]     = "YOUR_WIFI_SSID";
+constexpr char FACTORY_WIFI_SSID[]     = "";
 constexpr char FACTORY_WIFI_PASSWORD[] = "";
 constexpr char FACTORY_AP_SSID[]       = "ESP32-SD-HUB";
 constexpr char FACTORY_AP_PASSWORD[]   = "12345678";
@@ -138,12 +147,16 @@ constexpr int MIC_I2S_SCK = 5;  // I2S Bit Clock Line
 constexpr int MIC_I2S_WS  = 6;  // I2S Word Select Line
 
 // M070 2.8 吋 TFT 液晶螢幕與 XPT2046 觸控腳位
+// 【重要】Touch SPI 與 LCD / SD 共享 SPI 匯流排：
+//   T_CLK (SCK)  -> GPIO 12
+//   T_DIN (MOSI) -> GPIO 11
+//   T_DO  (MISO) -> GPIO 13
 constexpr int LCD_CS    = 9;   // M070 螢幕片選 (CS)
 constexpr int LCD_DC    = 14;  // M070 資料/指令 (DC/RS)
 constexpr int LCD_RST   = 21;  // M070 硬體重置 (RST)
 constexpr int LCD_BL    = -1;  // M070 背光控制 (-1 表常開接 3.3V)
 constexpr int TOUCH_CS  = 7;   // M070 XPT2046 觸控片選 (T_CS)
-constexpr int TOUCH_IRQ = 15;  // M070 XPT2046 觸控中斷 (T_IRQ/T_PEN)
+constexpr int TOUCH_IRQ = 15;  // M070 XPT2046 觸控中斷 (T_IRQ/T_PEN - 診斷可選)
 
 constexpr uint32_t SD_SPI_FREQUENCY = 40000000UL;
 
@@ -161,7 +174,7 @@ extern volatile bool g_isUploadingActive;
 extern String uploadTarget, uploadError;
 extern size_t uploadReceivedBytes;
 
-extern uint32_t serverModeEndTime;
+extern uint64_t serverModeEndTime;
 extern String serverModeRoot;
 
 extern uint64_t totalBytesSent;

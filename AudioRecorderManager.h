@@ -306,15 +306,17 @@ inline void stopAudioRecording() {
   digitalWrite(TOUCH_CS, HIGH);
 
   if (audioState.recordFile) {
-    if (g_audioRamBufLen > 0) {
-      audioState.recordFile.write(g_audioRamBuf, g_audioRamBufLen);
-      audioState.totalBytesWritten += g_audioRamBufLen;
-      g_audioRamBufLen = 0;
+    if (!hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
+      if (g_audioRamBufLen > 0) {
+        audioState.recordFile.write(g_audioRamBuf, g_audioRamBufLen);
+        audioState.totalBytesWritten += g_audioRamBufLen;
+        g_audioRamBufLen = 0;
+      }
+      writeWavHeader(audioState.recordFile, audioState.totalBytesWritten);
+      audioState.recordFile.flush();
     }
-    writeWavHeader(audioState.recordFile, audioState.totalBytesWritten);
-    audioState.recordFile.flush();
     audioState.recordFile.close();
-    logf("🎙️ [AUDIO] 錄音完成！檔案大小: %u bytes (路徑: %s)\n", (unsigned)audioState.totalBytesWritten, audioState.currentFilename.c_str());
+    logf("🎙️ [AUDIO] 錄音已安全停止與關閉！檔案大小: %u bytes (路徑: %s)\n", (unsigned)audioState.totalBytesWritten, audioState.currentFilename.c_str());
   }
 }
 

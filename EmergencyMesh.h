@@ -86,8 +86,8 @@ inline void processEspNowInbox() {
   totalEspNowReceived++;
   logf("📡 [ESP-NOW Mesh] 收到來自「%s」的訊息（Hop:%u）：%s\n", pkt.sender, pkt.hopCount, pkt.text);
 
-  // 寫入 SD 卡急難留言板
-  if (SD.cardType() != CARD_NONE) {
+  // 寫入 SD 卡急難留言板 (若 USB 隨身碟獨佔寫入中則暫緩寫入，防 FAT 損毀)
+  if (SD.cardType() != CARD_NONE && !hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) {
     ensureEmergencyDir();
     uint32_t nowSec = millis() / 1000;
     String newEntry = "  {\"id\":" + String(pkt.msgId)

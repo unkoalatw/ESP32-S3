@@ -173,6 +173,34 @@ inline bool removeRecursive(const String &path) {
 }
 
 // ---------------------------------------------------------------------------
+// 自動建立檔案版本備份 (/.versions/檔名_時間戳記.bak)
+// ---------------------------------------------------------------------------
+inline void createFileVersionBackup(const String &path) {
+  SpiLock lock;
+  if (!SD.exists(path)) return;
+  if (!SD.exists("/.versions")) SD.mkdir("/.versions");
+  String fname = leafName(path);
+  uint32_t ts = millis() / 1000;
+  String backupPath = "/.versions/" + fname + "_" + String(ts) + ".bak";
+
+  File src = SD.open(path, FILE_READ);
+  File dst = SD.open(backupPath, FILE_WRITE);
+  if (src && dst) {
+    uint8_t buf[512];
+    while (src.available()) {
+      size_t len = src.read(buf, sizeof(buf));
+      dst.write(buf, len);
+    }
+    src.close();
+    dst.close();
+    logf("📦 [Backup] 已自動建立版本備份: %s\n", backupPath.c_str());
+  } else {
+    if (src) src.close();
+    if (dst) dst.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 極速檔案串流 (支援 HTTP 206 Partial Content / Accept-Ranges / 影片進度條拖曳)
 // ---------------------------------------------------------------------------
 inline void streamFileFast(File &file, const String &contentType) {

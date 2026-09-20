@@ -43,7 +43,7 @@ String runtimeApPassword   = FACTORY_AP_PASSWORD;
 String runtimeWebUser      = FACTORY_WEB_USER;
 String runtimeWebPassword  = FACTORY_WEB_PASSWORD;
 
-uint32_t serverModeEndTime = 0;
+uint64_t serverModeEndTime = 0;
 String serverModeRoot = "/html";
 
 uint64_t totalBytesSent = 0;
@@ -92,6 +92,18 @@ USBMSC mscDrive;
 #endif
 
 // ---------------------------------------------------------------------------
+// 獨立 UI 核心任務 (FreeRTOS Core 1, 優先級 3) - 確保 120Hz 極致觸控與顯示流暢度
+// ---------------------------------------------------------------------------
+void uiTask(void *pvParameters) {
+  for (;;) {
+    handleTouchEvents();
+    handleButtonLoop();
+    handleDisplayLoop();
+    vTaskDelay(pdMS_TO_TICKS(8));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 開機初始化 (setup)
 // ---------------------------------------------------------------------------
 void setup() {
@@ -114,7 +126,7 @@ void setup() {
   // 0. 初始化 2.8 吋 TFT 螢幕並顯示開機載入畫面
   initTftPinsEarly();
   initTftDisplay();
-  showBootLoadingScreen(1, 8, "正在檢測 SD 記憶卡...");
+  showBootLoadingScreen(1, 8, "SD CARD INIT");
 
   // 1. 掛載記憶卡 (支援自動降頻容錯: 40MHz -> 4MHz)
   bool sdOk = initSDCard();
@@ -124,34 +136,31 @@ void setup() {
   initRuntimeConfig();
 
   // 2. 啟動 Wi-Fi (AP + STA 雙模)
-  showBootLoadingScreen(2, 8, "啟動 Wi-Fi 雙模網路與熱點...");
+  showBootLoadingScreen(2, 8, "WIFI DUAL-MODE");
   startWiFi();
 
   // 3. 啟動 USB 隨身碟 MSC 模式
-  showBootLoadingScreen(3, 8, "啟動 USB 隨身碟雙模讀取...");
+  showBootLoadingScreen(3, 8, "USB MSC DRIVE");
 #if CONFIG_IDF_TARGET_ESP32S3
   if (sdOk) initUSBMSCDrive();
 #endif
 
   // 4. 啟動 Web 伺服器、FTP 伺服器與 ESP-NOW Mesh
-  showBootLoadingScreen(4, 8, "啟動 Web 與 FTP 伺服器...");
+  showBootLoadingScreen(4, 8, "WEB / FTP SERVER");
   initWebServer();
   initFtpServer();
   initEspNowMesh();
 
   // 5. 啟動紅外線萬用遙控中心
-  showBootLoadingScreen(5, 8, "啟動萬用紅外線遙控中心...");
+  showBootLoadingScreen(5, 8, "IR CONTROLLER");
   initIrRemote();
 
   // 6. 啟動 I2S 數位高解析麥克風
-  showBootLoadingScreen(6, 8, "啟動 I2S 數位高解析麥克風...");
+  showBootLoadingScreen(6, 8, "I2S MICROPHONE");
   initI2SMicrophone();
-  if (sdOk) {
-    startAudioRecording(); // 開機即啟動全時無縫連續收音
-  }
 
   // 7. 啟動實體按鍵模組情境系統
-  showBootLoadingScreen(7, 8, "初始化實體按鈕情境系統...");
+  showBootLoadingScreen(7, 8, "BUTTON MANAGER");
   initButtonManager();
 
   printWelcomeGuide();
@@ -159,6 +168,9 @@ void setup() {
 
   // 8. 載入完成過渡至首頁
   finishBootDisplay();
+
+  // 啟動獨立 UI 專屬 FreeRTOS Task
+  xTaskCreatePinnedToCore(uiTask, "uiTask", 4096, NULL, 3, NULL, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,8 +186,5 @@ void loop() {
   processEspNowInbox();      // 處理 ESP-NOW 急難留言與跨跳廣播
   handleAudioRecorderLoop(); // I2S 音訊任務健康維持
   checkIrReceiver();         // 監聽紅外線學習訊號
-  handleButtonLoop();        // 實體按鈕 (GPIO 16 / BOOT 0) 點擊判定
-  handleTouchEvents();       // 處理 M070 觸控點擊事件
-  handleDisplayLoop();       // 螢幕局部動態刷新 (VU 表/計時器/遙測)
   yield();                   // 讓出 CPU 時間片，確保極致網路傳輸吞吐量
 }

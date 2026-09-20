@@ -9,20 +9,32 @@
 
 extern USBMSC mscDrive;
 
+inline void releaseAppStorageForUSB() {
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) return;
+  setFlag(SysFlag::USB_EXCLUSIVE_LOCK);
+  setFlag(SysFlag::USB_MOUNTED);
+  logLine("🔒 [StorageManager] PC 已掛載 USB 隨身碟，啟動 Exclusive USB Lock，暫停本機寫入");
+}
+
+inline void restoreAppStorageFromUSB() {
+  clearFlag(SysFlag::USB_EXCLUSIVE_LOCK);
+  clearFlag(SysFlag::USB_MOUNTED);
+  logLine("🔓 [StorageManager] PC 已退出/拔除 USB，釋放 Exclusive USB Lock，恢復本機儲存所有權");
+}
+
 inline bool onStartStopMSC(uint8_t power_condition, bool start, bool load_eject) {
   (void)power_condition;
   if (load_eject && !start) {
-    clearFlag(SysFlag::USB_MOUNTED);
-    clearFlag(SysFlag::USB_EXCLUSIVE_LOCK);
+    restoreAppStorageFromUSB();
   } else if (start) {
-    setFlag(SysFlag::USB_MOUNTED);
+    releaseAppStorageForUSB();
   }
   return true;
 }
 
 inline int32_t onReadMSC(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
   (void)offset;
-  setFlag(SysFlag::USB_MOUNTED);
+  releaseAppStorageForUSB();
   lastUsbActivity = millis();
   uint8_t *buf = (uint8_t *)buffer;
   uint32_t sectorCount = bufsize / 512;
@@ -51,8 +63,7 @@ inline int32_t onReadMSC(uint32_t lba, uint32_t offset, void *buffer, uint32_t b
 
 inline int32_t onWriteMSC(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize) {
   (void)offset;
-  setFlag(SysFlag::USB_MOUNTED);
-  setFlag(SysFlag::USB_EXCLUSIVE_LOCK); // 標記 USB 正在寫入 FAT 磁區，指示 ESP32 內部暫停寫入
+  releaseAppStorageForUSB();
   lastUsbActivity = millis();
   uint8_t *buf = (uint8_t *)buffer;
   uint32_t sectorCount = bufsize / 512;
@@ -76,6 +87,14 @@ inline int32_t onWriteMSC(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32
 
   digitalWrite(SD_CS, HIGH);
   return bytesWritten;
+}
+
+static void usbEventCallback(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+  if (event_base == ARDUINO_USB_EVENTS) {
+    if (event_id == ARDUINO_USB_STOPPED_EVENT || event_id == ARDUINO_USB_SUSPEND_EVENT) {
+      restoreAppStorageFromUSB();
+    }
+  }
 }
 
 inline void initUSBMSCDrive() {
@@ -105,6 +124,7 @@ inline void initUSBMSCDrive() {
   mscDrive.onWrite(onWriteMSC);
   mscDrive.mediaPresent(true);
   mscDrive.begin(secCount, 512);
+  USB.onEvent(usbEventCallback);
   USB.begin();
   logLine("[3/8] USB 隨身碟模式…… ✅ 已啟動（電腦插上 USB 線即可讀取）");
 }

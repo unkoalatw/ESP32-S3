@@ -61,11 +61,11 @@ inline String urlDecode(const String &str) {
 }
 
 // ---------------------------------------------------------------------------
-// 健全鑑權與真隨機 Session 管理 (128-bit Random Token + RAM Session Table)
+// 健全鑑權與真隨機 Session 管理 (128-bit Random Token + 64-bit Monotonic Time)
 // ---------------------------------------------------------------------------
 struct SessionEntry {
   char token[33];        // 32 位元 16 進位字串 + null 終結符
-  uint32_t expiresAt;    // Unix 時間戳記或系統秒數 (到期時間)
+  uint64_t expiresAt;    // 64-bit 單調遞增系統秒數 (到期時間，防止 49.7 天溢位)
   bool active;
 };
 
@@ -83,7 +83,7 @@ inline String generateSecureSessionToken() {
 }
 
 inline String createNewSession() {
-  uint32_t nowSec = millis() / 1000;
+  uint64_t nowSec = monotonicSeconds();
   String token = generateSecureSessionToken();
 
   // 尋找空位或已到期欄位
@@ -98,7 +98,7 @@ inline String createNewSession() {
 
   strncpy(g_activeSessions[targetSlot].token, token.c_str(), sizeof(g_activeSessions[targetSlot].token) - 1);
   g_activeSessions[targetSlot].token[sizeof(g_activeSessions[targetSlot].token) - 1] = '\0';
-  g_activeSessions[targetSlot].expiresAt = nowSec + 604800; // 預設 7 天有效
+  g_activeSessions[targetSlot].expiresAt = nowSec + 604800ULL; // 預設 7 天有效
   g_activeSessions[targetSlot].active = true;
   return token;
 }
@@ -114,7 +114,7 @@ inline void invalidateSession(const String &token) {
 
 inline bool isSessionTokenValid(const String &token) {
   if (token.length() != 32) return false;
-  uint32_t nowSec = millis() / 1000;
+  uint64_t nowSec = monotonicSeconds();
   for (size_t i = 0; i < MAX_ACTIVE_SESSIONS; i++) {
     if (g_activeSessions[i].active && token == g_activeSessions[i].token) {
       if (g_activeSessions[i].expiresAt >= nowSec) {
@@ -179,7 +179,7 @@ inline bool requireAuth() {
 inline void updateServerModeExpiry() {
   if (!hasFlag(SysFlag::SERVER_MODE)) return;
   if (serverModeEndTime == 0) return;
-  uint32_t nowSec = millis() / 1000;
+  uint64_t nowSec = monotonicSeconds();
   if (nowSec >= serverModeEndTime) {
     clearFlag(SysFlag::SERVER_MODE);
     serverModeEndTime = 0;
@@ -411,8 +411,8 @@ inline void handleStatus() {
   uint32_t sdTotalMB = static_cast<uint32_t>(totalBytes / (1024 * 1024));
   uint32_t sdUsedMB  = static_cast<uint32_t>(usedBytes / (1024 * 1024));
 
-  uint32_t nowSec = millis() / 1000;
-  uint32_t remSec = (serverModeEndTime > nowSec) ? (serverModeEndTime - nowSec) : 0;
+  uint64_t nowSec = monotonicSeconds();
+  uint32_t remSec = (serverModeEndTime > nowSec) ? static_cast<uint32_t>(serverModeEndTime - nowSec) : 0;
   bool hasTimer   = (serverModeEndTime > 0);
   bool isEm       = hasFlag(SysFlag::EMERGENCY_MODE);
 
@@ -698,27 +698,6 @@ inline void handleUploadDone() {
   } else {
     server.send(200, "application/json; charset=utf-8", "{\"status\":\"ok\",\"success\":true,\"message\":\"上傳成功\",\"path\":\"" + jsonEscape(uploadTarget) + "\"}");
   }
-}
-
-inline void createFileVersionBackup(const String &path) {
-  SpiLock lock;
-  if (!SD.exists(path)) return;
-  ensureDirectoryExists("/.versions");
-  auto fname = leafName(path);
-  auto ts = millis() / 1000;
-  auto backupPath = "/.versions/" + fname + "_" + String(ts) + ".bak";
-
-  auto src = SD.open(path, FILE_READ);
-  auto dst = SD.open(backupPath, FILE_WRITE);
-  if (src && dst) {
-    uint8_t buf[512];
-    while (src.available()) {
-      auto len = src.read(buf, sizeof(buf));
-      dst.write(buf, len);
-    }
-  }
-  if (src) src.close();
-  if (dst) { dst.flush(); dst.close(); }
 }
 
 inline void handleRead() {
@@ -1455,7 +1434,7 @@ inline void handleServerModeEnable() {
   if (root.length() == 0) root = server.arg("path");
   if (root.length() > 0)  serverModeRoot = normalizePath(root);
   auto duration = server.arg("duration").toInt();
-  if (duration > 0) serverModeEndTime = (millis() / 1000) + (duration * 60);
+  if (duration > 0) serverModeEndTime = monotonicSeconds() + (static_cast<uint64_t>(duration) * 60ULL);
   else serverModeEndTime = 0;
   setFlag(SysFlag::SERVER_MODE);
   String resp = "{\"status\":\"ok\",\"success\":true,\"isServerMode\":true,\"root\":\"" + jsonEscape(serverModeRoot) + "\",\"duration\":" + String(duration) + "}";

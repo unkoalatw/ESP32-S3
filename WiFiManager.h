@@ -27,7 +27,7 @@ inline void startWiFi() {
     logLine("🌐 [mDNS] 區域網路主機名廣播就緒: http://sdserver.local");
   }
 
-  if (runtimeWifiSsid != "YOUR_WIFI_NAME" && runtimeWifiSsid.length() > 0) {
+  if (runtimeWifiSsid.length() > 0) {
     logf("[2/8] 連線家用 Wi-Fi「%s」", runtimeWifiSsid.c_str());
     WiFi.begin(runtimeWifiSsid.c_str(), runtimeWifiPassword.c_str());
     uint32_t startMs = millis();
@@ -85,7 +85,7 @@ inline void watchWiFiStatus() {
     logLine("📴 與外部 Wi-Fi 的連線已中斷，背景自動重連中。");
   } else if (!nowConnected && (millis() - lastRetryMs > 12000)) {
     lastRetryMs = millis();
-    if (runtimeWifiSsid != "YOUR_WIFI_NAME" && runtimeWifiSsid.length() > 0) {
+    if (runtimeWifiSsid.length() > 0) {
       WiFi.reconnect();
     }
   }
@@ -126,6 +126,13 @@ inline void initDnsRelay() {
     g_dnsUpstreamUdp.begin(0); // 常駐的上游轉發 Socket，徹底避免資源洩漏
     g_dnsRelayStarted = true;
   }
+}
+
+inline void stopDnsRelay() {
+  if (!g_dnsRelayStarted) return;
+  g_dnsRelayUdp.stop();
+  g_dnsUpstreamUdp.stop();
+  g_dnsRelayStarted = false;
 }
 
 inline void handleDnsRelay() {
@@ -200,7 +207,9 @@ inline void disableNAPTRepeater() {
   UNLOCK_TCPIP_CORE();
   clearFlag(SysFlag::NAPT_ENABLED);
 
-  // 重新啟動 Captive Portal DNS
+  // 停止 DNS Relay 釋放 Port 53，重新啟動 Captive Portal DNS
+  stopDnsRelay();
+  captiveDns.stop();
   captiveDns.start(53, "*", WiFi.softAPIP());
   logLine("📴 網路分享（Wi-Fi 中繼）已關閉，已恢復 Captive Portal 強制門戶。");
 #else

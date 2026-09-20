@@ -21,6 +21,7 @@ inline String getDailyWeatherCsvPath() {
 }
 
 inline void appendWeatherRecordCsv() {
+  if (hasFlag(SysFlag::USB_EXCLUSIVE_LOCK)) return;
   String csvPath = getDailyWeatherCsvPath();
   SpiLock lock;
   bool isNewFile = !SD.exists(csvPath);

@@ -92,6 +92,7 @@ inline void showBootLoadingScreen(int step, int totalSteps, const char *msg);
 inline void finishBootDisplay();
 inline void switchScreenPage(ScreenPage newPage);
 inline void toggleScreenPower();
+inline void rearmTouchHardware();
 
 // ---------------------------------------------------------------------------
 // 標準 5x7 ASCII 字型點陣 (ASCII 32 ~ 126)
@@ -219,16 +220,48 @@ inline void initTftPinsEarly() {
 }
 
 // ---------------------------------------------------------------------------
-// 底層 SPI 繪圖原子操作
+// 底層 SPI 繪圖原子操作（無鎖 Raw 與帶鎖安全版）
 // ---------------------------------------------------------------------------
+inline void tftWriteCommandRaw(uint8_t cmd) {
+  digitalWrite(LCD_DC, LOW);
+  SPI.transfer(cmd);
+}
+
+inline void tftWriteDataRaw(uint8_t data) {
+  digitalWrite(LCD_DC, HIGH);
+  SPI.transfer(data);
+}
+
+inline void tftWriteData16Raw(uint16_t data) {
+  digitalWrite(LCD_DC, HIGH);
+  SPI.transfer(data >> 8);
+  SPI.transfer(data & 0xFF);
+}
+
+inline void tftSetAddrWindowRaw(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+  tftWriteCommandRaw(0x2A); // CASET
+  tftWriteDataRaw(x0 >> 8);
+  tftWriteDataRaw(x0 & 0xFF);
+  tftWriteDataRaw(x1 >> 8);
+  tftWriteDataRaw(x1 & 0xFF);
+
+  tftWriteCommandRaw(0x2B); // PASET
+  tftWriteDataRaw(y0 >> 8);
+  tftWriteDataRaw(y0 & 0xFF);
+  tftWriteDataRaw(y1 >> 8);
+  tftWriteDataRaw(y1 & 0xFF);
+
+  tftWriteCommandRaw(0x2C); // RAMWR
+  digitalWrite(LCD_DC, HIGH);
+}
+
 inline void tftWriteCommand(uint8_t cmd) {
   SpiLock lock;
   digitalWrite(TOUCH_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
   SPI.beginTransaction(TFT_SPI_SETTINGS);
-  digitalWrite(LCD_DC, LOW);
   digitalWrite(LCD_CS, LOW);
-  SPI.transfer(cmd);
+  tftWriteCommandRaw(cmd);
   digitalWrite(LCD_CS, HIGH);
   SPI.endTransaction();
 }
@@ -238,27 +271,21 @@ inline void tftWriteData(uint8_t data) {
   digitalWrite(TOUCH_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
   SPI.beginTransaction(TFT_SPI_SETTINGS);
-  digitalWrite(LCD_DC, HIGH);
   digitalWrite(LCD_CS, LOW);
-  SPI.transfer(data);
+  tftWriteDataRaw(data);
   digitalWrite(LCD_CS, HIGH);
   SPI.endTransaction();
 }
 
 inline void tftSetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
-  tftWriteCommand(0x2A); // CASET
-  tftWriteData(x0 >> 8);
-  tftWriteData(x0 & 0xFF);
-  tftWriteData(x1 >> 8);
-  tftWriteData(x1 & 0xFF);
-
-  tftWriteCommand(0x2B); // PASET
-  tftWriteData(y0 >> 8);
-  tftWriteData(y0 & 0xFF);
-  tftWriteData(y1 >> 8);
-  tftWriteData(y1 & 0xFF);
-
-  tftWriteCommand(0x2C); // RAMWR
+  SpiLock lock;
+  digitalWrite(TOUCH_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
+  SPI.beginTransaction(TFT_SPI_SETTINGS);
+  digitalWrite(LCD_CS, LOW);
+  tftSetAddrWindowRaw(x0, y0, x1, y1);
+  digitalWrite(LCD_CS, HIGH);
+  SPI.endTransaction();
 }
 
 inline void tftFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
@@ -269,14 +296,13 @@ inline void tftFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t col
   if (y + h > TFT_HEIGHT) h = TFT_HEIGHT - y;
 
   SpiLock lock;
-  tftSetAddrWindow(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
-                   static_cast<uint16_t>(x + w - 1), static_cast<uint16_t>(y + h - 1));
-
   digitalWrite(TOUCH_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
   SPI.beginTransaction(TFT_SPI_SETTINGS);
-  digitalWrite(LCD_DC, HIGH);
   digitalWrite(LCD_CS, LOW);
+
+  tftSetAddrWindowRaw(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
+                      static_cast<uint16_t>(x + w - 1), static_cast<uint16_t>(y + h - 1));
 
   uint32_t totalPixels = static_cast<uint32_t>(w) * h;
   uint8_t hi = color >> 8;
@@ -310,14 +336,14 @@ inline void tftDrawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t b
   }
 
   SpiLock lock;
+  digitalWrite(TOUCH_CS, HIGH);
+  digitalWrite(SD_CS, HIGH);
+  SPI.beginTransaction(TFT_SPI_SETTINGS);
+  digitalWrite(LCD_CS, LOW);
+
   if (x >= 0 && x + static_cast<int16_t>(w) <= TFT_WIDTH && y >= 0 && y + static_cast<int16_t>(h) <= TFT_HEIGHT) {
-    tftSetAddrWindow(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
-                     static_cast<uint16_t>(x + w - 1), static_cast<uint16_t>(y + h - 1));
-    digitalWrite(TOUCH_CS, HIGH);
-    digitalWrite(SD_CS, HIGH);
-    SPI.beginTransaction(TFT_SPI_SETTINGS);
-    digitalWrite(LCD_DC, HIGH);
-    digitalWrite(LCD_CS, LOW);
+    tftSetAddrWindowRaw(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
+                        static_cast<uint16_t>(x + w - 1), static_cast<uint16_t>(y + h - 1));
 
     uint8_t colorHi = color >> 8, colorLo = color & 0xFF;
     uint8_t bgHi    = bg >> 8,    bgLo    = bg & 0xFF;
@@ -339,22 +365,29 @@ inline void tftDrawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t b
         }
       }
     }
-    digitalWrite(LCD_CS, HIGH);
-    SPI.endTransaction();
   } else {
     for (int col = 0; col < 5; ++col) {
       uint8_t line = pgm_read_byte(&font5x7[charIdx + col]);
       for (int r = 0; r < 7; ++r) {
-        if ((line >> r) & 1) {
-          if (size == 1) tftDrawPixel(x + col, y + r, color);
-          else tftFillRect(x + col * size, y + r * size, size, size, color);
-        } else if (bg != color) {
-          if (size == 1) tftDrawPixel(x + col, y + r, bg);
-          else tftFillRect(x + col * size, y + r * size, size, size, bg);
+        int16_t px = x + col * size;
+        int16_t py = y + r * size;
+        bool pixelSet = ((line >> r) & 1) != 0;
+        uint16_t colVal = pixelSet ? color : bg;
+        if (pixelSet || bg != color) {
+          if (px >= 0 && px < TFT_WIDTH && py >= 0 && py < TFT_HEIGHT) {
+            tftSetAddrWindowRaw(px, py, px + size - 1, py + size - 1);
+            uint8_t hi = colVal >> 8, lo = colVal & 0xFF;
+            for (int s = 0; s < size * size; ++s) {
+              SPI.transfer(hi);
+              SPI.transfer(lo);
+            }
+          }
         }
       }
     }
   }
+  digitalWrite(LCD_CS, HIGH);
+  SPI.endTransaction();
 }
 
 inline void tftPrint(int16_t x, int16_t y, const String &text, uint16_t color, uint16_t bg, uint8_t size = 1) {
@@ -499,7 +532,7 @@ inline void renderScreenMenu() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. PAGE_WIFI_QR (Wi-Fi QR Code 與連線憑證)
+// 3. PAGE_WIFI_QR (Wi-Fi QR Code 與連線憑證 - 單一交易高速點陣繪圖)
 // ---------------------------------------------------------------------------
 inline void renderScreenWiFiQR() {
   tftClearScreen(COLOR_BG_DARK);
@@ -516,12 +549,30 @@ inline void renderScreenWiFiQR() {
 
   tftFillRect(qrX - 10, qrY - 10, qrPxSize + 20, qrPxSize + 20, COLOR_WHITE);
 
-  for (int r = 0; r < qr.size; r++) {
-    for (int c = 0; c < qr.size; c++) {
-      if (QrCodeEngine::getModule(qr, c, r)) {
-        tftFillRect(qrX + c * moduleScale, qrY + r * moduleScale, moduleScale, moduleScale, COLOR_BLACK);
+  {
+    SpiLock lock;
+    digitalWrite(TOUCH_CS, HIGH);
+    digitalWrite(SD_CS, HIGH);
+    SPI.beginTransaction(TFT_SPI_SETTINGS);
+    digitalWrite(LCD_CS, LOW);
+
+    tftSetAddrWindowRaw(qrX, qrY, qrX + qrPxSize - 1, qrY + qrPxSize - 1);
+
+    for (int r = 0; r < qr.size; r++) {
+      for (int my = 0; my < moduleScale; my++) {
+        for (int c = 0; c < qr.size; c++) {
+          bool mod = QrCodeEngine::getModule(qr, c, r);
+          uint8_t hi = mod ? 0x00 : 0xFF;
+          uint8_t lo = mod ? 0x00 : 0xFF;
+          for (int mx = 0; mx < moduleScale; mx++) {
+            SPI.transfer(hi);
+            SPI.transfer(lo);
+          }
+        }
       }
     }
+    digitalWrite(LCD_CS, HIGH);
+    SPI.endTransaction();
   }
 
   int cardY = qrY + qrPxSize + 14;
@@ -539,32 +590,38 @@ inline void renderScreenWiFiQR() {
 }
 
 // ---------------------------------------------------------------------------
-// 4. PAGE_IR_REMOTE (紅外線萬用遙控器)
+// 4. PAGE_IR_REMOTE (紅外線萬用遙控器 - 動態預設按鍵)
 // ---------------------------------------------------------------------------
 inline void renderScreenIrRemote() {
   tftClearScreen(COLOR_BG_DARK);
   renderPageHeader("IR Remote Controller", true);
 
-  // Row 1: TV Power & AC Power
-  tftFillRect(8, 40, 108, 46, 0x8800);
-  tftPrint(20, 56, "TV POWER", COLOR_WHITE, 0x8800, 1);
+  // Row 1
+  uint16_t c0 = (g_irPresets[0].color != 0) ? g_irPresets[0].color : 0x8800;
+  tftFillRect(8, 40, 108, 46, c0);
+  tftPrint(14, 56, g_irPresets[0].label, COLOR_WHITE, c0, 1);
 
-  tftFillRect(124, 40, 108, 46, 0x03EF);
-  tftPrint(136, 56, "AC POWER", COLOR_WHITE, 0x03EF, 1);
+  uint16_t c1 = (g_irPresets[1].color != 0) ? g_irPresets[1].color : 0x03EF;
+  tftFillRect(124, 40, 108, 46, c1);
+  tftPrint(130, 56, g_irPresets[1].label, COLOR_WHITE, c1, 1);
 
-  // Row 2: Volume
-  tftFillRect(8, 94, 108, 46, COLOR_CARD_BG);
-  tftPrint(28, 110, "VOL -", COLOR_WHITE, COLOR_CARD_BG, 1);
+  // Row 2
+  uint16_t c2 = (g_irPresets[2].color != 0) ? g_irPresets[2].color : COLOR_CARD_BG;
+  tftFillRect(8, 94, 108, 46, c2);
+  tftPrint(14, 110, g_irPresets[2].label, COLOR_WHITE, c2, 1);
 
-  tftFillRect(124, 94, 108, 46, COLOR_CARD_BG);
-  tftPrint(144, 110, "VOL +", COLOR_WHITE, COLOR_CARD_BG, 1);
+  uint16_t c3 = (g_irPresets[3].color != 0) ? g_irPresets[3].color : COLOR_CARD_BG;
+  tftFillRect(124, 94, 108, 46, c3);
+  tftPrint(130, 110, g_irPresets[3].label, COLOR_WHITE, c3, 1);
 
-  // Row 3: Channel
-  tftFillRect(8, 148, 108, 46, COLOR_CARD_BG);
-  tftPrint(32, 164, "CH -", COLOR_WHITE, COLOR_CARD_BG, 1);
+  // Row 3
+  uint16_t c4 = (g_irPresets[4].color != 0) ? g_irPresets[4].color : COLOR_CARD_BG;
+  tftFillRect(8, 148, 108, 46, c4);
+  tftPrint(14, 164, g_irPresets[4].label, COLOR_WHITE, c4, 1);
 
-  tftFillRect(124, 148, 108, 46, COLOR_CARD_BG);
-  tftPrint(148, 164, "CH +", COLOR_WHITE, COLOR_CARD_BG, 1);
+  uint16_t c5 = (g_irPresets[5].color != 0) ? g_irPresets[5].color : COLOR_CARD_BG;
+  tftFillRect(124, 148, 108, 46, c5);
+  tftPrint(130, 164, g_irPresets[5].label, COLOR_WHITE, c5, 1);
 
   // Row 4: Capture & Learn
   tftFillRect(8, 202, 224, 58, 0x1084);
@@ -808,7 +865,8 @@ inline void renderScreenEbook() {
     tftPrint(14, 104, "to SD: /books/ folder", COLOR_YELLOW, 0x0000, 1);
     tftPrint(14, 128, "via Web File Manager.", COLOR_LIGHTGREY, 0x0000, 1);
   } else {
-    String curBookName = bookFiles[0];
+    currentEbookIndex = currentEbookIndex % bookFiles.size();
+    String curBookName = bookFiles[currentEbookIndex];
     String fullPath = "/books/" + curBookName;
 
     tftFillRect(8, 38, 224, 20, 0x1084);
@@ -822,7 +880,8 @@ inline void renderScreenEbook() {
     if (currentEbookPage >= maxPages) currentEbookPage = maxPages - 1;
 
     char titleHdr[48];
-    snprintf(titleHdr, sizeof(titleHdr), "P.%lu/%lu: %.16s",
+    snprintf(titleHdr, sizeof(titleHdr), "[%d/%d|P.%lu/%lu] %.10s",
+             static_cast<int>(currentEbookIndex + 1), static_cast<int>(bookFiles.size()),
              (unsigned long)(currentEbookPage + 1), (unsigned long)maxPages, curBookName.c_str());
     tftPrint(12, 44, titleHdr, COLOR_YELLOW, 0x1084, 1);
 
@@ -844,11 +903,14 @@ inline void renderScreenEbook() {
     }
   }
 
-  tftFillRect(8, 228, 108, 40, COLOR_ACCENT);
-  tftPrint(24, 242, "< PREV PAGE", COLOR_WHITE, COLOR_ACCENT, 1);
+  tftFillRect(8, 224, 108, 26, COLOR_ACCENT);
+  tftPrint(20, 232, "< PREV PAGE", COLOR_WHITE, COLOR_ACCENT, 1);
 
-  tftFillRect(124, 228, 108, 40, COLOR_ACCENT);
-  tftPrint(140, 242, "NEXT PAGE >", COLOR_WHITE, COLOR_ACCENT, 1);
+  tftFillRect(124, 224, 108, 26, COLOR_ACCENT);
+  tftPrint(136, 232, "NEXT PAGE >", COLOR_WHITE, COLOR_ACCENT, 1);
+
+  tftFillRect(8, 254, 224, 22, 0x2124);
+  tftPrint(42, 260, "[ SWITCH NEXT BOOK >> ]", COLOR_YELLOW, 0x2124, 1);
 
   renderBottomNavBar();
 }
@@ -1126,70 +1188,93 @@ inline void toggleScreenPower() {
   }
 }
 
+inline int16_t touchBestTwoAvg(int16_t a, int16_t b, int16_t c) {
+  int16_t ab = abs(a - b);
+  int16_t ac = abs(a - c);
+  int16_t bc = abs(b - c);
+  if (ab <= ac && ab <= bc) return (a + b) / 2;
+  if (ac <= ab && ac <= bc) return (a + c) / 2;
+  return (b + c) / 2;
+}
+
 static bool requireFingerRelease = false;
 static uint32_t fingerReleaseLockTime = 0;
+static uint32_t lastTouchSampleUs = 0;
 
 inline bool checkTouchPressed() {
-  bool irq = (digitalRead(TOUCH_IRQ) == LOW);
-  lastIrqState = irq;
+  // 約 125Hz 輪詢率，避免每個 loop 狂掃 SPI 匯流排
+  uint32_t nowUs = micros();
+  if ((uint32_t)(nowUs - lastTouchSampleUs) < 8000) {
+    return currentTouch.isPressed;
+  }
+  lastTouchSampleUs = nowUs;
 
-  SpiLock lock;
+  SpiLock lock(pdMS_TO_TICKS(20));
+  if (!lock.isLocked()) {
+    return currentTouch.isPressed;
+  }
+
+  // 非 Touch 裝置全部拉 HIGH 禁能，避免 MISO bus contention 匯流排衝突
   digitalWrite(LCD_CS, HIGH);
   digitalWrite(SD_CS, HIGH);
+  digitalWrite(TOUCH_CS, HIGH);
 
-  // 保持 TOUCH_CS LOW 貫穿整個讀取序列，避免 ADC 管線被中斷重置
-  SPI.beginTransaction(TOUCH_SPI_SETTINGS);
+  SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
   digitalWrite(TOUCH_CS, LOW);
   delayMicroseconds(2);
 
-  // 多次取樣並取中位數以降低雜訊 (3 組採樣)
-  uint16_t xSamples[3], ySamples[3], zSamples[3];
-  for (int i = 0; i < 3; i++) {
-    xSamples[i] = xpt2046Read12(0xD0);  // X 座標 (PD=00: power down, PENIRQ enabled)
-    ySamples[i] = xpt2046Read12(0x90);  // Y 座標
-    zSamples[i] = xpt2046Read12(0xB0);  // Z1 壓力
-  }
+  // ---- Pressure (Z1 / Z2) ----
+  SPI.transfer(0xB1); // Z1 指令
+  int16_t z1 = SPI.transfer16(0xC1) >> 3; // 讀回 Z1 並發送 Z2 指令
+  int16_t z2 = SPI.transfer16(0x91) >> 3; // 讀回 Z2 並發送 Y 指令
+  int32_t pressure = (int32_t)z1 + 4095 - (int32_t)z2;
 
-  // 最終發送 power-down 命令，確保 PENIRQ 重新啟用
-  xpt2046Read12(0xD0);
+  uint16_t rawX = 0;
+  uint16_t rawY = 0;
+
+  if (pressure >= 250) {
+    // 第一筆為 Dummy sample 消除電荷殘留
+    SPI.transfer16(0x91);
+    int16_t a0 = SPI.transfer16(0xD1) >> 3;
+    int16_t b0 = SPI.transfer16(0x91) >> 3;
+    int16_t a1 = SPI.transfer16(0xD1) >> 3;
+    int16_t b1 = SPI.transfer16(0x91) >> 3;
+    // 最後一筆發送 power-down command (0xD0) 讓 controller 回到 PENIRQ standby
+    int16_t a2 = SPI.transfer16(0xD0) >> 3;
+    int16_t b2 = SPI.transfer16(0x0000) >> 3;
+
+    rawX = touchBestTwoAvg(a0, a1, a2);
+    rawY = touchBestTwoAvg(b0, b1, b2);
+  } else {
+    // 即使未達壓力門檻，也明確發送 power-down 讓 controller 回到 standby
+    SPI.transfer16(0xD0);
+    SPI.transfer16(0x0000);
+  }
 
   digitalWrite(TOUCH_CS, HIGH);
   SPI.endTransaction();
-  delayMicroseconds(50);  // 讓 PENIRQ 線穩定
 
-  // 簡易中位數：排序後取中間值 (對 3 個樣本排序)
-  auto median3 = [](uint16_t a, uint16_t b, uint16_t c) -> uint16_t {
-    if (a > b) { uint16_t t = a; a = b; b = t; }
-    if (b > c) { uint16_t t = b; b = c; c = t; }
-    if (a > b) { uint16_t t = a; a = b; b = t; }
-    return b;
-  };
+  lastRawX = rawX;
+  lastRawY = rawY;
+  lastZ1   = (pressure > 0) ? pressure : 0;
+  lastIrqState = (digitalRead(TOUCH_IRQ) == LOW);
 
-  uint16_t x1 = median3(xSamples[0], xSamples[1], xSamples[2]);
-  uint16_t y1 = median3(ySamples[0], ySamples[1], ySamples[2]);
-  uint16_t z1 = median3(zSamples[0], zSamples[1], zSamples[2]);
+  // ★ 完全不把 IRQ 作為觸控成立的必要條件，以真實壓力值判定
+  bool isTouched = (pressure >= 250) && (rawX >= 100 && rawX <= 4000 && rawY >= 100 && rawY <= 4000);
 
-  lastRawX = x1;
-  lastRawY = y1;
-  lastZ1   = z1;
-
-  bool inValidRange = (x1 >= 100 && x1 <= 3900 && y1 >= 100 && y1 <= 3900);
-  // 嚴格判定：必須有 PENIRQ 中斷拉低 + Z1 壓力感應大於閾值 + ADC 數值落在有效螢幕區間
-  // 徹底杜絕無觸碰時因 SPI 匯流排浮接或雜訊導致的幽靈亂點 (Phantom Touch)
-  bool isTouched    = irq && (z1 > 40) && inValidRange;
-
-  if (isTouched) {
-    int32_t cx = map(static_cast<int32_t>(x1), 3650, 350, 0, TFT_WIDTH);
-    int32_t cy = map(static_cast<int32_t>(y1), 3750, 350, 0, TFT_HEIGHT);
-
-    currentTouch.x = constrain(cx, 0, TFT_WIDTH - 1);
-    currentTouch.y = constrain(cy, 0, TFT_HEIGHT - 1);
-    currentTouch.isPressed = true;
-    return true;
+  if (!isTouched) {
+    currentTouch.isPressed = false;
+    return false;
   }
 
-  currentTouch.isPressed = false;
-  return false;
+  // 座標映射與校正
+  int32_t cx = map(static_cast<int32_t>(rawX), 3650, 350, 0, TFT_WIDTH);
+  int32_t cy = map(static_cast<int32_t>(rawY), 3750, 350, 0, TFT_HEIGHT);
+
+  currentTouch.x = constrain(cx, 0, TFT_WIDTH - 1);
+  currentTouch.y = constrain(cy, 0, TFT_HEIGHT - 1);
+  currentTouch.isPressed = true;
+  return true;
 }
 
 static uint32_t lastTouchPressMs = 0;
@@ -1298,26 +1383,26 @@ inline void handleTouchEvents() {
     case PAGE_IR_REMOTE:
       if (ty >= 36 && ty <= 90) {
         if (tx >= 4 && tx <= 118) {
-          sendNecIrCode(0x20DF10EF);
+          sendPresetIrCode(0);
           matched = true;
         } else if (tx >= 122 && tx <= 236) {
-          sendNecIrCode(0x8800909);
+          sendPresetIrCode(1);
           matched = true;
         }
       } else if (ty >= 91 && ty <= 144) {
         if (tx >= 4 && tx <= 118) {
-          sendNecIrCode(0x20DFC03F);
+          sendPresetIrCode(2);
           matched = true;
         } else if (tx >= 122 && tx <= 236) {
-          sendNecIrCode(0x20DF40BF);
+          sendPresetIrCode(3);
           matched = true;
         }
       } else if (ty >= 145 && ty <= 198) {
         if (tx >= 4 && tx <= 118) {
-          sendNecIrCode(0x20DF807F);
+          sendPresetIrCode(4);
           matched = true;
         } else if (tx >= 122 && tx <= 236) {
-          sendNecIrCode(0x20DF00FF);
+          sendPresetIrCode(5);
           matched = true;
         }
       } else if (ty >= 199 && ty <= 265 && tx >= 4 && tx <= 236) {
@@ -1359,7 +1444,7 @@ inline void handleTouchEvents() {
       break;
 
     case PAGE_EBOOK:
-      if (ty >= 224 && ty <= 272) {
+      if (ty >= 224 && ty <= 252) {
         if (tx >= 4 && tx <= 118) {
           if (currentEbookPage > 0) currentEbookPage--;
           renderScreenEbook();
@@ -1369,6 +1454,11 @@ inline void handleTouchEvents() {
           renderScreenEbook();
           matched = true;
         }
+      } else if (ty >= 254 && ty <= 276 && tx >= 4 && tx <= 236) {
+        currentEbookIndex++;
+        currentEbookPage = 0;
+        renderScreenEbook();
+        matched = true;
       }
       break;
 
@@ -1395,8 +1485,6 @@ inline void handleDisplayLoop() {
   if (now - lastDisplayUpdateMs < 200) return;
   lastDisplayUpdateMs = now;
 
-  bool didRedraw = false;
-
   if (currentPage == PAGE_SYSTEM_INFO) {
     char diagBuf[48];
     snprintf(diagBuf, sizeof(diagBuf), "RAW:(%04u,%04u) Z:%03u IRQ:%d", lastRawX, lastRawY, lastZ1, lastIrqState ? 1 : 0);
@@ -1406,7 +1494,6 @@ inline void handleDisplayLoop() {
     snprintf(diagBuf, sizeof(diagBuf), "SCR:(%03u,%03u) %s", currentTouch.x, currentTouch.y, currentTouch.isPressed ? "PRESS" : "IDLE ");
     tftFillRect(0, 220, 240, 11, COLOR_BLACK);
     tftPrint(2, 220, diagBuf, currentTouch.isPressed ? COLOR_GREEN : COLOR_DARKGREY, COLOR_BLACK, 1);
-    didRedraw = true;
   }
 
   if (currentPage == PAGE_VOICE_MEMO && audioState.isRecording) {
@@ -1417,12 +1504,7 @@ inline void handleDisplayLoop() {
     uint16_t vuWidth = 30 + (millis() % 140);
     tftFillRect(20, 196, 200, 12, 0x0000);
     tftFillRect(20, 196, vuWidth, 12, COLOR_GREEN);
-    didRedraw = true;
   }
-
-  // 無論是否有局部重繪，都必須重新武裝觸控 PENIRQ
-  // 因為本輪 loop 中的其他 SPI 操作 (Web/FTP/SD) 可能已改變匯流排狀態
-  rearmTouchHardware();
 }
 
 // ---------------------------------------------------------------------------
@@ -1537,7 +1619,6 @@ inline void initTftDisplay() {
     if (LCD_BL >= 0) {
       digitalWrite(LCD_BL, HIGH);
     }
-    switchScreenPage(PAGE_HOME);
   }
 }
 
